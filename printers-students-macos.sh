@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Rady School of Management Student Printer Installation Script for macOS
 # Installs two Xerox AltaLink C8200 SMB printers on macOS with duplex ON,
 # stapling enabled (if available), and per-queue location metadata.
-# Usage: sudo bash install_rsm_xerox_c8200.sh
+# Usage: curl -fsSL "https://raw.githubusercontent.com/tgynl/printer-installations/main/printers-students-macos.sh" | sudo bash
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ declare -a QUEUES=(
   "rsm-2w107-xerox-mac"
 )
 
-# Human-friendly names (optional) and Locations
+# Human-friendly names and Locations
 declare -A DISPLAY_NAME=(
   ["rsm-2s111-xerox-mac"]="RSM 2S111 Xerox (Mac)"
   ["rsm-2w107-xerox-mac"]="RSM 2W107 Xerox (Mac)"
@@ -25,7 +25,7 @@ declare -A LOCATIONS=(
 ensure_cups() {
   echo "Ensuring CUPS is enabled and running..."
   sudo launchctl enable system/org.cups.cupsd >/dev/null 2>&1 || true
-  sudo launchctl start system/org.cups.cupsd >/dev/null 2>&1 || true
+  sudo launchctl start  system/org.cups.cupsd >/dev/null 2>&1 || true
 }
 
 # Prefer using the installed Xerox model definition over a raw PPD file
@@ -103,31 +103,28 @@ tune_duplex_and_stapling() {
 
   # Try several likely option names in order of commonality
   local key value=""
-  # preference list of (key, preferred value pattern)
-  # Will choose the first matching option and first suitable non-none value it exposes.
   declare -a CANDIDATES=(
-    "StapleLocation"        # values often: None,SingleLeft,SingleRight,UpperLeft,UpperRight,TwoLeft,TwoRight
-    "XRXStaple"             # Xerox specific: Off,On or location variants
-    "Stapling"              # Some drivers expose 'Stapling' with On/Off
-    "Staple"                # Generic
-    "Finishing"             # May include stapling among other finishings
+    "StapleLocation"   # values: None, SingleLeft, UpperLeft, TwoLeft, etc.
+    "XRXStaple"        # Xerox-specific: Off/On or location variants
+    "Stapling"         # Generic On/Off
+    "Staple"           # Generic
+    "Finishing"        # May include stapling among other finishings
   )
 
   for key in "${CANDIDATES[@]}"; do
     if echo "$opts" | grep -q "^${key}/"; then
-      # Extract the line and parse available values (after a colon)
+      # Extract available values (after the colon)
       local line values
       line="$(echo "$opts" | grep "^${key}/" | head -n1)"
-      # Values are space-separated tokens; first is default with an asterisk (*)
       values="$(echo "$line" | sed 's/.*: //')"
-      # Prefer a single-staple, top-left/left option if present; else any non-none/on
+
+      # Prefer single-staple upper/left if present; else any non-none/on value
       for candidate in SingleLeft UpperLeft Left TopLeft StapleTopLeft OneStaple DualLeft On Enabled; do
         if echo "$values" | grep -Eiq "(^|\s)\*?${candidate}(\s|$)"; then
           value="$candidate"
           break
         fi
       done
-      # If nothing matched, pick the first non-none token
       if [[ -z "$value" ]]; then
         value="$(echo "$values" | tr ' ' '\n' | grep -viE '(^$|none|off|disabled)' | sed 's/^\*//' | head -n1 || true)"
       fi
