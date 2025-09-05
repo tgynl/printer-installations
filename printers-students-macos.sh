@@ -13,6 +13,7 @@
 # )"
 
 set -eu
+# Enable pipefail where supported (older bash 3.2 is fine)
 (set -o pipefail) 2>/dev/null || true
 
 ### --- Configuration --- ###
@@ -20,12 +21,10 @@ SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
 Q1_NAME="rsm-2s111-xerox-mac"
-Q1_DESC="Xerox AltaLink C8230 — Help Desk"
 Q1_LOC="2nd Floor South Wing - Help Desk area"
 
 # Printer 2
 Q2_NAME="rsm-2w107-xerox-mac"
-Q2_DESC="Xerox AltaLink C8230 — Grand Student Lounge"
 Q2_LOC="2nd Floor West Wing - Grand Student Lounge"
 
 # Xerox PPD paths to try (common installs)
@@ -78,7 +77,6 @@ ppd_for_model_or_generic() {
   fi
 }
 
-# Set an option only if the PPD exposes it
 set_ppd_option_if_supported() {
   local printer="$1" key="$2" value="$3"
   if lpoptions -p "$printer" -l | awk -F: '{print $1}' | grep -qx "$key"; then
@@ -86,7 +84,6 @@ set_ppd_option_if_supported() {
   fi
 }
 
-# Default to single-sided (Simplex)
 set_default_simplex() {
   local printer="$1"
   local line choices
@@ -99,61 +96,52 @@ set_default_simplex() {
   set_ppd_option_if_supported "$printer" "Duplex" "None"
 }
 
-# Expose duplex/stapling features (names vary by PPD). DO NOT turn them on by default.
 expose_feature_flags() {
   local printer="$1"
-  # Duplex hardware flags
   for kv in "Duplexer=True" "Duplexer=Installed" "OptionDuplex=Installed" "DuplexUnit=Installed" "InstalledDuplex=True" "Duplex=None"; do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
   done
-  # Stapling/finisher flags
   for kv in "Stapler=Installed" "Finisher=Installed" "FinisherInstalled=True" "StapleUnit=Installed" "Staple=None"; do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
   done
 }
 
-# Run a command and return 0/1 without exiting the script
-run_safely() {
-  set +e
-  "$@"
-  local rc=$?
-  set -e
-  return "$rc"
-}
-
 add_printer() {
-  local name="$1" share="$2" desc="$3" loc="$4"
-  local ppd ok=1
-
+  local name="$1" share="$2" loc="$3"
+  local ppd
   ppd="$(ppd_for_model_or_generic)"
-  echo "Installing $name (PPD: $ppd)"
 
-  run_safely lpadmin -x "$name" 2>/dev/null || true
-  run_safely lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$desc" -L "$loc" -m "$ppd" || ok=0
-  run_safely cupsaccept "$name" || ok=0
-  run_safely cupsenable "$name" || ok=0
-  run_safely expose_feature_flags "$name" || ok=0
-  run_safely set_default_simplex "$name" || ok=0
+  echo "==> Adding printer '$name' (share '$share') via SMB..."
+  echo "    Using PPD: $ppd"
 
-  if [ "$ok" -eq 1 ]; then
-    echo "✅  $name installed (Location: $loc)"
-    return 0
-  else
-    echo "❌  $name failed to install (Location: $loc)"
-    return 1
-  fi
+  lpadmin -x "$name" 2>/dev/null || true
+  lpadmin \
+    -p "$name" \
+    -E \
+    -v "smb://$SERVER/$share" \
+    -D "$name" \       # description same as printer name
+    -L "$loc" \
+    -m "$ppd"
+
+  cupsaccept "$name"
+  cupsenable "$name"
+  expose_feature_flags "$name"
+  set_default_simplex "$name"
+
+  echo "✔ Installed '$name' at $loc"
 }
 
 main() {
   need_sudo
   assert_macos_tools
 
-  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_DESC" "$Q1_LOC" || true
-  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_DESC" "$Q2_LOC" || true
+  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_LOC"
+  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_LOC"
 
   echo
-  echo "All done! Default is single-sided."
-  echo "Users can choose 2-sided & stapling in app dialogs when supported by the driver."
+  echo "All done!"
+  echo "• Default is single-sided. Users can choose 2-sided & stapling in app dialogs if supported by the driver."
+  echo "• If Xerox drivers are not installed, Generic PostScript PPD is used as fallback."
 }
 
 main "$@"
