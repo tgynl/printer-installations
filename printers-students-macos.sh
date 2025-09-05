@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Rady School of Management - macOS SMB Printer Installer (bash)
-# Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
+# Server: rsm-print.ad.ucsd.edu
 # Printers:
-#   - rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
-#   - rsm-2w107-xerox-mac — 2nd Floor West Wing - Grad Student Lounge
+#   - rsm-2s111-xerox-mac / 2nd Floor / South / Help Desk area
+#   - rsm-2w107-xerox-mac — 2nd Floor / West / Grad Student Lounge
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
@@ -24,8 +24,8 @@ Q2_NAME="rsm-2w107-xerox-mac"
 Q2_LOC="2nd Floor / West / Grad Student Lounge"
 
 echo "Rady School of Management - macOS SMB Printer Installer (bash)"
-echo "Enter your Mac password. Cursor will not appear to move. Keep typing your password"
-echo
+echo "Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press on RETURN key"
+echo ""
 
 # Xerox PPD candidates (prefer vendor; fallback Generic PS)
 XEROX_PPD_CANDIDATES=(
@@ -169,8 +169,9 @@ main() {
     
   fi
   echo "• Duplex is enabled (hardware present) but default remains single-sided."
-  echo
+  echo ""
 }
 
 main "$@"
+
 
