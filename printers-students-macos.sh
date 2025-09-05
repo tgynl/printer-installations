@@ -13,7 +13,7 @@
 #   --testpage         Print a CUPS test page to each queue after install
 #   --quiet            Less console output (errors still shown)
 #
-# One-liner (handles CRLF safely):
+# One-liner (CRLF-safe):
 # /bin/bash -c "$(
 #   curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/printers-students-macos.sh | tr -d '\r'
 # )"
@@ -49,7 +49,7 @@ FORCE_GENERIC=0
 DO_UNINSTALL=0
 DO_TESTPAGE=0
 
-### --- Args (FIXED) --- ###
+### --- Args --- ###
 while [ $# -gt 0 ]; do
   case "$1" in
     --uninstall) DO_UNINSTALL=1 ;;
@@ -153,7 +153,7 @@ expose_feature_flags() {
   set_ppd_option_if_supported "$printer" "Staple" "None"    # default: no stapling
 }
 
-# Run a block with errexit disabled; return success/failure
+# Run a command with errexit disabled; return its status
 run_safely() {
   set +e
   "$@"
@@ -206,7 +206,6 @@ print_testpage() {
   local name="$1"
   if lpstat -p "$name" >/dev/null 2>&1; then
     log "Submitting CUPS test page to $name"
-    # Test page path can vary; this one exists on most macOS versions:
     if [ -f /System/Library/Printers/Libraries/PrintJobMgr.framework/Versions/A/Resources/TestPage.pdf ]; then
       run_safely lp -d "$name" /System/Library/Printers/Libraries/PrintJobMgr.framework/Versions/A/Resources/TestPage.pdf || true
     fi
