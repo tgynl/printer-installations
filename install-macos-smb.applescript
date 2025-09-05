@@ -9,7 +9,8 @@ Rady School of Management – macOS SMB Printer Installer (AppleScript)
 *)
 
 on run
-  set bashScript to "/bin/bash -lc 'set -euo pipefail
+  set bashScript to "/bin/bash -lc 'set -eu; set -o | grep -q pipefail && set -o pipefail || true
+
 SERVER=\"rsm-print.ad.ucsd.edu\"
 
 Q1_NAME=\"rsm-2s111-xerox-mac\"
@@ -40,7 +41,10 @@ assert_tools() {
 
 pick_xerox_ppd() {
   for p in \"${XEROX_PPD_CANDIDATES[@]}\"; do
-    [[ -f \"$p\" ]] && { echo \"$p\"; return 0; }
+    if [ -f \"$p\" ]; then
+      echo \"$p\"
+      return 0
+    fi
   done
   return 1
 }
@@ -54,45 +58,38 @@ ppd_for_model_or_generic() {
 }
 
 set_ppd_option_if_supported() {
-  local printer=\"$1\" key=\"$2\" value=\"$3\"
-  if lpoptions -p \"$printer\" -l | awk -F\":\" \"{print \\$1}\" | grep -qx \"$key\"; then
+  printer=\"$1\"; key=\"$2\"; value=\"$3\"
+  if lpoptions -p \"$printer\" -l | awk -F\":\" '{print $1}' | grep -qx \"$key\"; then
     lpadmin -p \"$printer\" -o \"$key=$value\" || true
   fi
 }
 
 set_default_simplex() {
-  local printer=\"$1\" line choices
-  if line=$(lpoptions -p \"$printer\" -l | grep '^Duplex/'); then
-    choices=$(echo \"$line\" | sed -E 's/^[^:]+:\\s*//')
-    echo \"$choices\" | grep -qw None    && { lpadmin -p \"$printer\" -o Duplex=None;    return; }
-    echo \"$choices\" | grep -qw Off     && { lpadmin -p \"$printer\" -o Duplex=Off;     return; }
-    echo \"$choices\" | grep -qw Simplex && { lpadmin -p \"$printer\" -o Duplex=Simplex; return; }
+  printer=\"$1\"
+  if lpoptions -p \"$printer\" -l 2>/dev/null | grep -q '^Duplex/'; then
+    # Prefer None, else Off, else Simplex if present
+    opts=$(lpoptions -p \"$printer\" -l | grep '^Duplex/' | sed -E 's/^[^:]+:[[:space:]]*//')
+    echo \"$opts\" | grep -qw None    && { lpadmin -p \"$printer\" -o Duplex=None;    return; }
+    echo \"$opts\" | grep -qw Off     && { lpadmin -p \"$printer\" -o Duplex=Off;     return; }
+    echo \"$opts\" | grep -qw Simplex && { lpadmin -p \"$printer\" -o Duplex=Simplex; return; }
   fi
-  set_ppd_option_if_supported \"$printer\" Duplex None
+  set_ppd_option_if_supported \"$printer\" \"Duplex\" \"None\"
 }
 
 expose_feature_flags() {
-  local printer=\"$1\"
-  for kv in \
-    Duplexer=True \
-    Duplexer=Installed \
-    OptionDuplex=Installed \
-    DuplexUnit=Installed \
-    InstalledDuplex=True \
-    Duplex=None
-  do set_ppd_option_if_supported \"$printer\" \"${kv%%=*}\" \"${kv#*=}\"; done
-
-  for kv in \
-    Stapler=Installed \
-    Finisher=Installed \
-    FinisherInstalled=True \
-    StapleUnit=Installed \
-    Staple=None
-  do set_ppd_option_if_supported \"$printer\" \"${kv%%=*}\" \"${kv#*=}\"; done
+  printer=\"$1\"
+  for kv in \"Duplexer=True\" \"Duplexer=Installed\" \"OptionDuplex=Installed\" \"DuplexUnit=Installed\" \"InstalledDuplex=True\" \"Duplex=None\"; do
+    key=\"${kv%%=*}\"; val=\"${kv#*=}\"
+    set_ppd_option_if_supported \"$printer\" \"$key\" \"$val\"
+  done
+  for kv in \"Stapler=Installed\" \"Finisher=Installed\" \"FinisherInstalled=True\" \"StapleUnit=Installed\" \"Staple=None\"; do
+    key=\"${kv%%=*}\"; val=\"${kv#*=}\"
+    set_ppd_option_if_supported \"$printer\" \"$key\" \"$val\"
+  done
 }
 
 add_printer() {
-  local name=\"$1\" share=\"$2\" desc=\"$3\" loc=\"$4\" ppd
+  name=\"$1\"; share=\"$2\"; desc=\"$3\"; loc=\"$4\"
   ppd=$(ppd_for_model_or_generic)
   echo \"==> Installing $name (PPD: $ppd)\"
 
@@ -108,13 +105,13 @@ main() {
   add_printer \"$Q1_NAME\" \"$Q1_NAME\" \"$Q1_DESC\" \"$Q1_LOC\"
   add_printer \"$Q2_NAME\" \"$Q2_NAME\" \"$Q2_DESC\" \"$Q2_LOC\"
   echo
-  echo \"All done. Default is single-sided; users can select 2-sided & stapling from app dialogs if supported by the driver.\"
+  echo \"All done. Default is single-sided; users can select 2-sided & stapling in app dialogs if supported by the driver.\"
 }
 main
 '"
 
   try
-    -- This triggers a standard macOS admin password prompt
+    -- Standard macOS elevation prompt:
     do shell script bashScript with administrator privileges
     display dialog "RSM printers installed successfully." buttons {"OK"} default button "OK" with icon note
   on error errMsg number errNum
