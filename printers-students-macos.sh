@@ -21,12 +21,12 @@ SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
 Q1_NAME="rsm-2s111-xerox-mac"
-Q1_DESC="rsm-2s111-xerox-mac"
+Q1_DESC="Xerox AltaLink C8230 — Help Desk"
 Q1_LOC="2nd Floor South Wing - Help Desk area"
 
 # Printer 2
 Q2_NAME="rsm-2w107-xerox-mac"
-Q2_DESC="rsm-2w107-xerox-mac"
+Q2_DESC="Xerox AltaLink C8230 — Grand Student Lounge"
 Q2_LOC="2nd Floor West Wing - Grand Student Lounge"
 
 # Xerox PPD paths to try (common installs)
