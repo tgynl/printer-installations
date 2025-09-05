@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Rady School of Management - macOS SMB Printer Installer (bash)
+# Rady School of Management – macOS SMB Printer Installer (bash)
 # Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
 # Printers:
-#   - rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
-#   - rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
+#   • rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
+#   • rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
 # Model: Xerox AltaLink C8230 (prefer vendor PPD; fallback Generic PS)
 # Default: single-sided (no duplex); duplex & stapling available if supported
 #
@@ -13,6 +13,7 @@
 # )"
 
 set -eu
+# Enable pipefail where supported (older bash 3.2 is fine)
 (set -o pipefail) 2>/dev/null || true
 
 ### --- Configuration --- ###
@@ -20,10 +21,12 @@ SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
 Q1_NAME="rsm-2s111-xerox-mac"
+Q1_DESC="rsm-2s111-xerox-mac"
 Q1_LOC="2nd Floor South Wing - Help Desk area"
 
 # Printer 2
 Q2_NAME="rsm-2w107-xerox-mac"
+Q2_DESC="rsm-2w107-xerox-mac"
 Q2_LOC="2nd Floor West Wing - Grand Student Lounge"
 
 # Xerox PPD paths to try (common installs)
@@ -111,7 +114,7 @@ expose_feature_flags() {
 }
 
 add_printer() {
-  local name="$1" share="$2" loc="$3"
+  local name="$1" share="$2" desc="$3" loc="$4"
   local ppd
   ppd="$(ppd_for_model_or_generic)"
 
@@ -119,23 +122,28 @@ add_printer() {
   echo "    Using PPD: $ppd"
 
   lpadmin -x "$name" 2>/dev/null || true
-  # NOTE: single line, ASCII quotes, description equals the printer name
-  lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$name" -L "$loc" -m "$ppd"
+  lpadmin \
+    -p "$name" \
+    -E \
+    -v "smb://$SERVER/$share" \
+    -D "$desc" \
+    -L "$loc" \
+    -m "$ppd"
 
   cupsaccept "$name"
   cupsenable "$name"
   expose_feature_flags "$name"
   set_default_simplex "$name"
 
-  echo "✔ Installed '$name' at $loc"
+  echo "✔ Installed '$name' ($desc) at $loc"
 }
 
 main() {
   need_sudo
   assert_macos_tools
 
-  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_LOC"
-  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_LOC"
+  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_DESC" "$Q1_LOC"
+  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_DESC" "$Q2_LOC"
 
   echo
   echo "All done!"
