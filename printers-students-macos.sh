@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Rady School of Management – macOS SMB Printer Installer (bash)
+# Rady School of Management - macOS SMB Printer Installer (bash)
 # Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
 # Printers:
-#   • rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
-#   • rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
+#   - rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
+#   - rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
 # Model: Xerox AltaLink C8230 (prefer vendor PPD; fallback Generic PS)
 # Default: single-sided (no duplex); duplex & stapling available if supported
 #
@@ -13,7 +13,6 @@
 # )"
 
 set -eu
-# Enable pipefail where supported (older bash 3.2 is fine)
 (set -o pipefail) 2>/dev/null || true
 
 ### --- Configuration --- ###
@@ -77,6 +76,7 @@ ppd_for_model_or_generic() {
   fi
 }
 
+# Set an option only if the PPD exposes it
 set_ppd_option_if_supported() {
   local printer="$1" key="$2" value="$3"
   if lpoptions -p "$printer" -l | awk -F: '{print $1}' | grep -qx "$key"; then
@@ -84,6 +84,7 @@ set_ppd_option_if_supported() {
   fi
 }
 
+# Default to single-sided (Simplex)
 set_default_simplex() {
   local printer="$1"
   local line choices
@@ -96,11 +97,14 @@ set_default_simplex() {
   set_ppd_option_if_supported "$printer" "Duplex" "None"
 }
 
+# Expose duplex/stapling features (names vary by PPD). DO NOT turn them on by default.
 expose_feature_flags() {
   local printer="$1"
+  # Duplex hardware flags
   for kv in "Duplexer=True" "Duplexer=Installed" "OptionDuplex=Installed" "DuplexUnit=Installed" "InstalledDuplex=True" "Duplex=None"; do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
   done
+  # Stapling/finisher flags
   for kv in "Stapler=Installed" "Finisher=Installed" "FinisherInstalled=True" "StapleUnit=Installed" "Staple=None"; do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
   done
@@ -115,13 +119,8 @@ add_printer() {
   echo "    Using PPD: $ppd"
 
   lpadmin -x "$name" 2>/dev/null || true
-  lpadmin \
-    -p "$name" \
-    -E \
-    -v "smb://$SERVER/$share" \
-    -D "$name" \       # description same as printer name
-    -L "$loc" \
-    -m "$ppd"
+  # NOTE: single line, ASCII quotes, description equals the printer name
+  lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$name" -L "$loc" -m "$ppd"
 
   cupsaccept "$name"
   cupsenable "$name"
