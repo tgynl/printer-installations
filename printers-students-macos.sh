@@ -3,7 +3,7 @@
 # Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
 # Printers:
 #   • rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
-#   • rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
+#   • rsm-2w107-xerox-mac — 2nd Floor West Wing - Grad Student Lounge
 # Model: Xerox AltaLink C8230 (prefer vendor PPD; fallback Generic PS)
 # Default: single-sided (no duplex); duplex & stapling available if supported
 #
@@ -25,7 +25,7 @@ Q1_LOC="2nd Floor South Wing - Help Desk area"
 
 # Printer 2
 Q2_NAME="rsm-2w107-xerox-mac"
-Q2_LOC="2nd Floor West Wing - Grand Student Lounge"
+Q2_LOC="2nd Floor West Wing - Grad Student Lounge"
 
 # Xerox PPD paths to try (common installs)
 XEROX_PPD_CANDIDATES=(
@@ -145,3 +145,4 @@ main() {
 }
 
 main "$@"
+
