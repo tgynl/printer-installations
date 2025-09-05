@@ -49,7 +49,7 @@ FORCE_GENERIC=0
 DO_UNINSTALL=0
 DO_TESTPAGE=0
 
-### --- Args --- ###
+### --- Args (FIXED) --- ###
 while [ $# -gt 0 ]; do
   case "$1" in
     --uninstall) DO_UNINSTALL=1 ;;
@@ -57,7 +57,8 @@ while [ $# -gt 0 ]; do
     --testpage) DO_TESTPAGE=1 ;;
     --quiet|-q) QUIET=1 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
-  case_esac=true; shift
+  esac
+  shift
 done
 
 ### --- Helpers --- ###
@@ -154,7 +155,6 @@ expose_feature_flags() {
 
 # Run a block with errexit disabled; return success/failure
 run_safely() {
-  # Usage: run_safely cmd arg1 ... argN
   set +e
   "$@"
   local rc=$?
@@ -165,12 +165,11 @@ run_safely() {
 add_printer() {
   local name="$1" share="$2" loc="$3"
   local ppd ok=0
-  local desc="$name"   # (1) Description equals printer name
+  local desc="$name"   # Description equals printer name
 
   ppd="$(ppd_for_model_or_generic)"
   log "Installing $name (PPD: $ppd)"
 
-  # Perform the install steps; mark ok=1 only if all succeed
   ok=1
   run_safely lpadmin -x "$name" 2>/dev/null || true
 
@@ -181,11 +180,9 @@ add_printer() {
   run_safely set_default_simplex "$name" || ok=0
 
   if [ "$ok" -eq 1 ]; then
-    # (2) Green check on success
     log "✅  $name installed (Location: $loc)"
     return 0
   else
-    # (2) Red X on failure
     elog "❌  $name failed to install. See $LOGFILE for details."
     return 1
   fi
@@ -209,7 +206,10 @@ print_testpage() {
   local name="$1"
   if lpstat -p "$name" >/dev/null 2>&1; then
     log "Submitting CUPS test page to $name"
-    run_safely lp -d "$name" /System/Library/Printers/Libraries/PrintJobMgr.framework/Versions/A/Resources/TestPage.pdf || true
+    # Test page path can vary; this one exists on most macOS versions:
+    if [ -f /System/Library/Printers/Libraries/PrintJobMgr.framework/Versions/A/Resources/TestPage.pdf ]; then
+      run_safely lp -d "$name" /System/Library/Printers/Libraries/PrintJobMgr.framework/Versions/A/Resources/TestPage.pdf || true
+    fi
   fi
 }
 
