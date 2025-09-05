@@ -39,10 +39,6 @@ XEROX_PPD_CANDIDATES=(
 # Generic PostScript fallback built into CUPS
 GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
-# Logging (writeable on macOS; falls back to ~/Library/Logs if needed)
-LOGFILE="/Library/Logs/rsm-printers.log"
-QUIET=0
-
 ### --- Helpers --- ###
 need_sudo() {
   if [ "$(id -u)" -ne 0 ]; then
@@ -52,41 +48,12 @@ need_sudo() {
   fi
 }
 
-setup_logfile() {
-  # Try system log dir first; fall back to user log dir if needed
-  if ! /usr/bin/sudo /usr/bin/install -d -m 755 -o root -g wheel "$(dirname "$LOGFILE")" 2>/dev/null; then
-    LOGFILE="$HOME/Library/Logs/rsm-printers.log"
-    /bin/mkdir -p "$(dirname "$LOGFILE")" 2>/dev/null || true
-  fi
-  if [[ "$LOGFILE" == /Library/Logs/* ]]; then
-    /usr/bin/sudo /usr/bin/touch "$LOGFILE" 2>/dev/null || true
-    /usr/bin/sudo /bin/chmod 644 "$LOGFILE" 2>/dev/null || true
-  else
-    /usr/bin/touch "$LOGFILE" 2>/dev/null || true
-    /bin/chmod 644 "$LOGFILE" 2>/dev/null || true
-  fi
-}
-
-log() {
-  [ "$QUIET" -eq 0 ] && echo "$*"
-  if [ -n "${LOGFILE:-}" ]; then
-    printf "%s %s\n" "$(date '+%F %T')" "$*" | /usr/bin/sudo /usr/bin/tee -a "$LOGFILE" >/dev/null 2>&1 || true
-  fi
-}
-
-elog() {
-  echo "$*" >&2
-  if [ -n "${LOGFILE:-}" ]; then
-    printf "%s ERROR %s\n" "$(date '+%F %T')" "$*" | /usr/bin/sudo /usr/bin/tee -a "$LOGFILE" >/dev/null 2>&1 || true
-  fi
-}
-
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 assert_macos_tools() {
   for c in lpadmin lpoptions cupsenable cupsaccept; do
     if ! have_cmd "$c"; then
-      elog "Error: '$c' not found. CUPS is required on macOS."
+      echo "Error: '$c' not found. CUPS is required on macOS." >&2
       exit 1
     fi
   done
@@ -125,8 +92,8 @@ set_default_simplex() {
   local line choices
   if line="$(lpoptions -p "$printer" -l | grep '^Duplex/')" 2>/dev/null; then
     choices="$(echo "$line" | sed -E 's/^[^:]+:[[:space:]]*//')"
-    echo "$choices" | grep -qw None    && { lpadmin -p "$printer" -o Duplex=None; return; }
-    echo "$choices" | grep -qw Off     && { lpadmin -p "$printer" -o Duplex=Off; return; }
+    echo "$choices" | grep -qw None    && { lpadmin -p "$printer" -o Duplex=None;    return; }
+    echo "$choices" | grep -qw Off     && { lpadmin -p "$printer" -o Duplex=Off;     return; }
     echo "$choices" | grep -qw Simplex && { lpadmin -p "$printer" -o Duplex=Simplex; return; }
   fi
   set_ppd_option_if_supported "$printer" "Duplex" "None"
@@ -145,7 +112,7 @@ expose_feature_flags() {
   done
 }
 
-# Run a command with errexit disabled; return its status
+# Run a command and return 0/1 without exiting the script
 run_safely() {
   set +e
   "$@"
@@ -157,9 +124,9 @@ run_safely() {
 add_printer() {
   local name="$1" share="$2" desc="$3" loc="$4"
   local ppd ok=1
-  ppd="$(ppd_for_model_or_generic)"
 
-  log "Installing $name (PPD: $ppd)"
+  ppd="$(ppd_for_model_or_generic)"
+  echo "Installing $name (PPD: $ppd)"
 
   run_safely lpadmin -x "$name" 2>/dev/null || true
   run_safely lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$desc" -L "$loc" -m "$ppd" || ok=0
@@ -169,26 +136,24 @@ add_printer() {
   run_safely set_default_simplex "$name" || ok=0
 
   if [ "$ok" -eq 1 ]; then
-    log "✅  $name installed (Location: $loc)"
+    echo "✅  $name installed (Location: $loc)"
     return 0
   else
-    elog "❌  $name failed to install (Location: $loc)"
+    echo "❌  $name failed to install (Location: $loc)"
     return 1
   fi
 }
 
 main() {
   need_sudo
-  setup_logfile
   assert_macos_tools
 
   add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_DESC" "$Q1_LOC" || true
   add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_DESC" "$Q2_LOC" || true
 
-  log ""
-  log "All done! Default is single-sided."
-  log "Users can choose 2-sided & stapling in app dialogs when supported by the driver."
-  log "Logs: $LOGFILE"
+  echo
+  echo "All done! Default is single-sided."
+  echo "Users can choose 2-sided & stapling in app dialogs when supported by the driver."
 }
 
 main "$@"
