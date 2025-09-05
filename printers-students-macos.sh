@@ -8,7 +8,7 @@
 # - Default: single-sided (no duplex)
 #
 # Usage (one‑liner):
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/install-macos-smb.sh)"
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/refs/heads/main/printers-students-macos.sh)"
 #
 # Notes:
 # • This script requires admin rights. You'll be prompted for sudo once.
@@ -44,7 +44,6 @@ GENERIC_PPD="drv:///sample.drv/generic.ppd"
 need_sudo() {
   if [[ $(id -u) -ne 0 ]]; then
     sudo -v
-    # keep-alive: update existing sudo time stamp until the script finishes
     while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
   fi
 }
@@ -78,7 +77,6 @@ ppd_for_model_or_generic() {
   fi
 }
 
-# Sets an option if the PPD actually exposes it (prevents lpadmin exits on bad keys)
 set_ppd_option_if_supported() {
   local printer="$1" key="$2" value="$3"
   if lpoptions -p "$printer" -l | awk -F":" '{print $1}' | grep -qx "$key"; then
@@ -86,46 +84,39 @@ set_ppd_option_if_supported() {
   fi
 }
 
-# Attempt to force default simplex (no duplex) using whatever the PPD supports
 set_default_simplex() {
   local printer="$1"
-  # Find Duplex choices (if any), then prefer None/Off/Simplex
   local line
   if line=$(lpoptions -p "$printer" -l | grep '^Duplex/'); then
-    # Extract the choices list after the colon
     local choices
     choices=$(echo "$line" | sed -E 's/^[^:]+:\s*//')
     if echo "$choices" | grep -qw None;   then lpadmin -p "$printer" -o Duplex=None   || true; return; fi
     if echo "$choices" | grep -qw Off;    then lpadmin -p "$printer" -o Duplex=Off    || true; return; fi
     if echo "$choices" | grep -qw Simplex;then lpadmin -p "$printer" -o Duplex=Simplex|| true; return; fi
   fi
-  # Some Xerox PPDs use different flags for default simplex—ignore if not present
   set_ppd_option_if_supported "$printer" "Duplex" "None"
 }
 
-# Mark hardware features as present so UI exposes them (names vary per PPD)
 expose_feature_flags() {
   local printer="$1"
-  # Common Duplexer flags across various PPDs
   for kv in \
     'Duplexer=True' \
     'Duplexer=Installed' \
     'OptionDuplex=Installed' \
     'DuplexUnit=Installed' \
     'InstalledDuplex=True' \
-    'Duplex=None' # ensure default simplex even if Duplex option exists
+    'Duplex=None'
   do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
   done
 
-  # Common Stapler/Finisher flags
   for kv in \
     'Stapler=Installed' \
     'Finisher=Installed' \
     'FinisherInstalled=True' \
     'StapleUnit=Installed' \
     'Stapling=On' \
-    'Staple=None' # keep default as no stapling
+    'Staple=None'
   do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
   done
@@ -139,7 +130,6 @@ add_printer() {
   echo "\n==> Adding printer '$name' (share '$share') via SMB..."
   echo "    Using PPD: $ppd"
 
-  # Create/replace the queue
   lpadmin -x "$name" 2>/dev/null || true
   lpadmin \
     -p "$name" \
@@ -149,14 +139,10 @@ add_printer() {
     -L "$loc" \
     -m "$ppd"
 
-  # Accept and enable the queue
   cupsaccept "$name"
   cupsenable "$name"
 
-  # Ensure features are exposed (if supported by the selected PPD)
   expose_feature_flags "$name"
-
-  # Default print is single-sided
   set_default_simplex "$name"
 
   echo "    ✔ Installed '$name' ($desc) at $loc"
