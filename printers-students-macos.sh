@@ -2,17 +2,14 @@
 # Rady School of Management Student Printer Installation Script for macOS
 # Installs two SMB-shared Xerox printers on macOS using CUPS (lpadmin).
 # - Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
-# - Printers: rsm-2s111-xerox-mac (Help Desk), rsm-2w107-xerox-mac (Grad Student Lounge)
+# - Printers: rsm-2s111-xerox-mac (Help Desk), rsm-2w107-xerox-mac (Grand Student Lounge))
 # - Model: Xerox AltaLink C8230 (use vendor PPD if present; otherwise Generic PS)
 # - Features: Expose duplex + stapling if supported by the installed PPD
 # - Default: single-sided (no duplex)
+## Usage (one‑liner):
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/install-macos-smb.sh)"
 #
-# Usage (one‑liner):
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/refs/heads/main/printers-students-macos.sh)"
-#
-# Notes:
-# • This script requires admin rights. You'll be prompted for sudo once.
-# • It works on modern macOS with CUPS (10.13+). Tested with macOS 12+ APIs.
+# • macOS with CUPS (10.13+). Tested with macOS 12+ APIs.
 # • If you later install official Xerox drivers, re-run this script to auto‑switch to the better PPD.
 set -euo pipefail
 
@@ -113,19 +110,15 @@ expose_feature_flags() {
   for kv in \
     'Stapler=Installed' \
     'Finisher=Installed' \
+    'FinisherInstalled=Truefor kv in \
+    'Stapler=Installed' \
+    'Finisher=Installed' \
     'FinisherInstalled=True' \
     'StapleUnit=Installed' \
-    'Stapling=On' \
     'Staple=None'
   do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
-  done
-}
-
-add_printer() {
-  local name="$1" share="$2" desc="$3" loc="$4"
-  local ppd
-  ppd=$(ppd_for_model_or_generic)
+  donefor_model_or_generic)
 
   echo "\n==> Adding printer '$name' (share '$share') via SMB..."
   echo "    Using PPD: $ppd"
