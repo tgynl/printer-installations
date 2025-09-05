@@ -9,7 +9,7 @@ Rady School of Management – macOS SMB Printer Installer (AppleScript)
 *)
 
 on run
-  set bashScript to "/bin/bash -lc 'set -eu; set -o | grep -q pipefail && set -o pipefail || true
+  set bashScript to "/bin/bash -c 'set -eu; set -o | grep -q pipefail && set -o pipefail || true
 
 SERVER=\"rsm-print.ad.ucsd.edu\"
 
@@ -21,15 +21,10 @@ Q2_NAME=\"rsm-2w107-xerox-mac\"
 Q2_DESC=\"Xerox AltaLink C8230 — Grand Student Lounge\"
 Q2_LOC=\"2nd Floor West Wing - Grand Student Lounge\"
 
-XEROX_PPD_CANDIDATES=(
-  \"/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8230.gz\"
-  \"/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8230.gz\"
-  \"/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8200 Series.gz\"
-  \"/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8200 Series.gz\"
-)
-GENERIC_PPD=\"drv:///sample.drv/generic.ppd\"
-
+# --- Helper: check command exists ---
 have_cmd() { command -v \"$1\" >/dev/null 2>&1; }
+
+# --- Ensure required CUPS tools ---
 assert_tools() {
   for c in lpadmin lpoptions cupsenable cupsaccept; do
     if ! have_cmd \"$c\"; then
@@ -39,24 +34,28 @@ assert_tools() {
   done
 }
 
-pick_xerox_ppd() {
-  for p in \"${XEROX_PPD_CANDIDATES[@]}\"; do
-    if [ -f \"$p\" ]; then
-      echo \"$p\"
-      return 0
-    fi
-  done
-  return 1
-}
-
+# --- Pick Xerox PPD if present, else Generic PS ---
 ppd_for_model_or_generic() {
-  if PPD=$(pick_xerox_ppd); then
-    echo \"$PPD\"
-  else
-    echo \"$GENERIC_PPD\"
+  if [ -f \"/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8230.gz\" ]; then
+    echo \"/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8230.gz\"
+    return
   fi
+  if [ -f \"/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8230.gz\" ]; then
+    echo \"/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8230.gz\"
+    return
+  fi
+  if [ -f \"/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8200 Series.gz\" ]; then
+    echo \"/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8200 Series.gz\"
+    return
+  fi
+  if [ -f \"/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8200 Series.gz\" ]; then
+    echo \"/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8200 Series.gz\"
+    return
+  fi
+  echo \"drv:///sample.drv/generic.ppd\"
 }
 
+# --- Set option only if PPD exposes it ---
 set_ppd_option_if_supported() {
   printer=\"$1\"; key=\"$2\"; value=\"$3\"
   if lpoptions -p \"$printer\" -l | awk -F\":\" '{print $1}' | grep -qx \"$key\"; then
@@ -64,10 +63,10 @@ set_ppd_option_if_supported() {
   fi
 }
 
+# --- Default to single-sided ---
 set_default_simplex() {
   printer=\"$1\"
   if lpoptions -p \"$printer\" -l 2>/dev/null | grep -q '^Duplex/'; then
-    # Prefer None, else Off, else Simplex if present
     opts=$(lpoptions -p \"$printer\" -l | grep '^Duplex/' | sed -E 's/^[^:]+:[[:space:]]*//')
     echo \"$opts\" | grep -qw None    && { lpadmin -p \"$printer\" -o Duplex=None;    return; }
     echo \"$opts\" | grep -qw Off     && { lpadmin -p \"$printer\" -o Duplex=Off;     return; }
@@ -76,18 +75,28 @@ set_default_simplex() {
   set_ppd_option_if_supported \"$printer\" \"Duplex\" \"None\"
 }
 
+# --- Expose duplex/stapling features (if the PPD supports them) ---
 expose_feature_flags() {
   printer=\"$1\"
-  for kv in \"Duplexer=True\" \"Duplexer=Installed\" \"OptionDuplex=Installed\" \"DuplexUnit=Installed\" \"InstalledDuplex=True\" \"Duplex=None\"; do
-    key=\"${kv%%=*}\"; val=\"${kv#*=}\"
-    set_ppd_option_if_supported \"$printer\" \"$key\" \"$val\"
-  done
-  for kv in \"Stapler=Installed\" \"Finisher=Installed\" \"FinisherInstalled=True\" \"StapleUnit=Installed\" \"Staple=None\"; do
-    key=\"${kv%%=*}\"; val=\"${kv#*=}\"
-    set_ppd_option_if_supported \"$printer\" \"$key\" \"$val\"
-  done
+  # Duplex-related flags
+  set_ppd_option_if_supported \"$printer\" \"Duplexer\" \"True\"
+  set_ppd_option_if_supported \"$printer\" \"Duplexer\" \"Installed\"
+  set_ppd_option_if_supported \"$printer\" \"OptionDuplex\" \"Installed\"
+  set_ppd_option_if_supported \"$printer\" \"DuplexUnit\" \"Installed\"
+  set_ppd_option_if_supported \"$printer\" \"InstalledDuplex\" \"True\"
+  # Ensure default stays single-sided
+  set_ppd_option_if_supported \"$printer\" \"Duplex\" \"None\"
+
+  # Stapling/finisher flags
+  set_ppd_option_if_supported \"$printer\" \"Stapler\" \"Installed\"
+  set_ppd_option_if_supported \"$printer\" \"Finisher\" \"Installed\"
+  set_ppd_option_if_supported \"$printer\" \"FinisherInstalled\" \"True\"
+  set_ppd_option_if_supported \"$printer\" \"StapleUnit\" \"Installed\"
+  # Keep default as no stapling
+  set_ppd_option_if_supported \"$printer\" \"Staple\" \"None\"
 }
 
+# --- Add a printer queue via SMB ---
 add_printer() {
   name=\"$1\"; share=\"$2\"; desc=\"$3\"; loc=\"$4\"
   ppd=$(ppd_for_model_or_generic)
