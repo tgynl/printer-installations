@@ -1,2 +1,2 @@
-# Normalize all text files to LF
-* text=auto eol=lf
+# Force LF endings for shell scripts
+*.sh text eol=lf
