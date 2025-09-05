@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Rady School of Management Student Printer Installation Script for macOS
-# Installs two SMB-shared Xerox printers on macOS using CUPS (lpadmin).
-# - Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
-# - Printers: rsm-2s111-xerox-mac (Help Desk), rsm-2w107-xerox-mac (Grand Student Lounge))
-# - Model: Xerox AltaLink C8230 (use vendor PPD if present; otherwise Generic PS)
-# - Features: Expose duplex + stapling if supported by the installed PPD
-# - Default: single-sided (no duplex)
-## Usage (one‑liner):
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/install-macos-smb.sh)"
-#
-# • macOS with CUPS (10.13+). Tested with macOS 12+ APIs.
-# • If you later install official Xerox drivers, re-run this script to auto‑switch to the better PPD.
-set -euo pipefail
+# Rady School of Management – macOS SMB Printer Installer (bash)
+# Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
+# Printers:
+#   • rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
+#   • rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
+# Model: Xerox AltaLink C8230 (prefer vendor PPD; fallback Generic PS)
+# Default: single-sided (no duplex); duplex & stapling available if supported
+
+set -eu
+# Enable pipefail where supported (older bash 3.2 is fine)
+(set -o pipefail) 2>/dev/null || true
 
 ### --- Configuration --- ###
 SERVER="rsm-print.ad.ucsd.edu"
@@ -26,7 +24,7 @@ Q2_NAME="rsm-2w107-xerox-mac"
 Q2_DESC="Xerox AltaLink C8230 — Grand Student Lounge"
 Q2_LOC="2nd Floor West Wing - Grand Student Lounge"
 
-# Xerox PPD candidates (add more if your package installs to a different filename)
+# Xerox PPD paths to try (common installs)
 XEROX_PPD_CANDIDATES=(
   "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8230.gz"
   "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8230.gz"
@@ -39,8 +37,9 @@ GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
 ### --- Helpers --- ###
 need_sudo() {
-  if [[ $(id -u) -ne 0 ]]; then
+  if [ "$(id -u)" -ne 0 ]; then
     sudo -v
+    # keep sudo alive during run
     while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
   fi
 }
@@ -57,8 +56,9 @@ assert_macos_tools() {
 }
 
 pick_xerox_ppd() {
+  local p
   for p in "${XEROX_PPD_CANDIDATES[@]}"; do
-    if [[ -f "$p" ]]; then
+    if [ -f "$p" ]; then
       echo "$p"
       return 0
     fi
@@ -67,60 +67,52 @@ pick_xerox_ppd() {
 }
 
 ppd_for_model_or_generic() {
-  if PPD=$(pick_xerox_ppd); then
+  if PPD="$(pick_xerox_ppd)"; then
     echo "$PPD"
   else
     echo "$GENERIC_PPD"
   fi
 }
 
+# Set an option only if the PPD exposes it
 set_ppd_option_if_supported() {
   local printer="$1" key="$2" value="$3"
-  if lpoptions -p "$printer" -l | awk -F":" '{print $1}' | grep -qx "$key"; then
+  if lpoptions -p "$printer" -l | awk -F: '{print $1}' | grep -qx "$key"; then
     lpadmin -p "$printer" -o "$key=$value" || true
   fi
 }
 
+# Default to single-sided (Simplex)
 set_default_simplex() {
   local printer="$1"
-  local line
-  if line=$(lpoptions -p "$printer" -l | grep '^Duplex/'); then
-    local choices
-    choices=$(echo "$line" | sed -E 's/^[^:]+:\s*//')
-    if echo "$choices" | grep -qw None;   then lpadmin -p "$printer" -o Duplex=None   || true; return; fi
-    if echo "$choices" | grep -qw Off;    then lpadmin -p "$printer" -o Duplex=Off    || true; return; fi
-    if echo "$choices" | grep -qw Simplex;then lpadmin -p "$printer" -o Duplex=Simplex|| true; return; fi
+  local line choices
+  if line="$(lpoptions -p "$printer" -l | grep '^Duplex/')" 2>/dev/null; then
+    choices="$(echo "$line" | sed -E 's/^[^:]+:[[:space:]]*//')"
+    echo "$choices" | grep -qw None    && { lpadmin -p "$printer" -o Duplex=None;    return; }
+    echo "$choices" | grep -qw Off     && { lpadmin -p "$printer" -o Duplex=Off;     return; }
+    echo "$choices" | grep -qw Simplex && { lpadmin -p "$printer" -o Duplex=Simplex; return; }
   fi
   set_ppd_option_if_supported "$printer" "Duplex" "None"
 }
 
+# Expose duplex/stapling features (names vary by PPD). DO NOT turn them on by default.
 expose_feature_flags() {
   local printer="$1"
-  for kv in \
-    'Duplexer=True' \
-    'Duplexer=Installed' \
-    'OptionDuplex=Installed' \
-    'DuplexUnit=Installed' \
-    'InstalledDuplex=True' \
-    'Duplex=None'
-  do
+  # Duplex hardware flags
+  for kv in "Duplexer=True" "Duplexer=Installed" "OptionDuplex=Installed" "DuplexUnit=Installed" "InstalledDuplex=True" "Duplex=None"; do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
   done
-
-  for kv in \
-    'Stapler=Installed' \
-    'Finisher=Installed' \
-    'FinisherInstalled=Truefor kv in \
-    'Stapler=Installed' \
-    'Finisher=Installed' \
-    'FinisherInstalled=True' \
-    'StapleUnit=Installed' \
-    'Staple=None'
-  do
+  # Stapling/finisher flags
+  for kv in "Stapler=Installed" "Finisher=Installed" "FinisherInstalled=True" "StapleUnit=Installed" "Staple=None"; do
     set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
-  donefor_model_or_generic)
+  done
+}
 
-  echo "\n==> Adding printer '$name' (share '$share') via SMB..."
+add_printer() {
+  local name="$1" share="$2" desc="$3" loc="$4"
+  local ppd
+  ppd="$(ppd_for_model_or_generic)"
+  echo "==> Adding printer '$name' (share '$share') via SMB..."
   echo "    Using PPD: $ppd"
 
   lpadmin -x "$name" 2>/dev/null || true
@@ -148,9 +140,10 @@ main() {
   add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_DESC" "$Q1_LOC"
   add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_DESC" "$Q2_LOC"
 
-  echo "\nAll done!"
-  echo "• Default is single-sided. Users can choose 2‑sided and stapling in app dialogs if supported by the driver."
-  echo "• If Xerox drivers are not installed, a Generic PostScript PPD is used as fallback."
+  echo
+  echo "All done!"
+  echo "• Default is single-sided. Users can choose 2-sided & stapling in app dialogs if supported by the driver."
+  echo "• If Xerox drivers are not installed, Generic PostScript PPD is used as fallback."
 }
 
 main "$@"
