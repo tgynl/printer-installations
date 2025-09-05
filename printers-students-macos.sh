@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
-
+# Rady School of Management - macOS SMB Printer Installer (bash)
 # Server: rsm-print.ad.ucsd.edu
 # Printers:
-#   • rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
-#   • rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
+#   - rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
+#   - rsm-2w107-xerox-mac — 2nd Floor West Wing - Grad Student Lounge
 # Model: Xerox AltaLink C8230 (prefer vendor PPD; fallback Generic PS)
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
 #   - Duplex + stapling ENABLED (hardware flags set), but NOT default (default stays single-sided)
-echo
-echo "Rady School of Management – macOS SMB Printer Installer (bash)"
-echo
+#
+# One-liner (CRLF-safe):
+# /bin/bash -c "$(
+#   curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/printers-students-macos.sh | tr -d '\r'
+# )"
+#
+# Flags:
+#   --prompt-now          Send a test page after install to trigger the macOS auth dialog immediately
+#   --username <name>     Prefill a suggested username for the auth dialog (e.g., NETID or AD\\NETID)
 
 set -eu
 (set -o pipefail) 2>/dev/null || true
@@ -25,7 +31,7 @@ Q1_LOC="2nd Floor South Wing - Help Desk area"
 
 # Printer 2
 Q2_NAME="rsm-2w107-xerox-mac"
-Q2_LOC="2nd Floor West Wing - Grad Student Lounge"
+Q2_LOC="2nd Floor West Wing - Grand Student Lounge"   # fixed: “Grand”
 
 # Xerox PPD candidates (prefer vendor; fallback Generic PS)
 XEROX_PPD_CANDIDATES=(
@@ -38,6 +44,8 @@ GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
 PROMPT_NOW=0
 SUGGESTED_USER=""
+
+echo "Rady School of Management - macOS SMB Printer Installer (bash)"
 
 ### --- Args --- ###
 while [ $# -gt 0 ]; do
@@ -130,14 +138,10 @@ add_printer() {
   lpadmin -x "$name" 2>/dev/null || true
 
   # Description = printer name; require auth negotiation; optionally prefill username
-  if [ -n "$SUGGESTED_USER" ]; then
-    lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$name" -L "$loc" -m "$ppd" \
-      -o auth-info-required=negotiate \
-      -o auth-info-username-default="$SUGGESTED_USER"
-  else
-    lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$name" -L "$loc" -m "$ppd" \
-      -o auth-info-required=negotiate
-  fi
+  lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$name" -L "$loc" -m "$ppd" \
+    -o auth-info-required=negotiate \
+    ${SUGGESTED_USER:+-o auth-info-username-default="$SUGGESTED_USER"} \
+    2>/dev/null
 
   cupsaccept "$name"
   cupsenable "$name"
