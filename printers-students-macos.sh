@@ -25,7 +25,6 @@ Q2_LOC="2nd Floor / West / Grad Student Lounge"
 
 echo "Rady School of Management - macOS SMB Printer Installer (bash)"
 echo "Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press on RETURN key"
-echo ""
 
 # Xerox PPD candidates (prefer vendor; fallback Generic PS)
 XEROX_PPD_CANDIDATES=(
@@ -173,5 +172,6 @@ main() {
 }
 
 main "$@"
+
 
 
