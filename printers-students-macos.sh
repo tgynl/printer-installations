@@ -23,8 +23,8 @@ Q1_LOC="2nd Floor / South / Help Desk"
 Q2_NAME="rsm-2w107-xerox-mac"
 Q2_LOC="2nd Floor / West / Grad Student Lounge"
 
-echo "Rady School of Management - macOS SMB Printer Installer (bash)"
-echo "Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press on RETURN key"
+echo "> Rady School of Management - macOS SMB Printer Installer (bash)"
+echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press on RETURN key"
 
 # Xerox PPD candidates (prefer vendor; fallback Generic PS)
 XEROX_PPD_CANDIDATES=(
@@ -124,8 +124,8 @@ add_printer() {
   ppd="$(ppd_for_model_or_generic)"
 
   echo
-  echo "==> Adding printer '$name' (share '$share') via SMB..."
-  echo "    Using PPD: $ppd"
+  echo "# Adding printer '$name' (share '$share') via SMB..."
+  echo "# Using PPD: $ppd"
 
   # Remove any existing queue silently
   lpadmin -x "$name" 2>/dev/null || true
@@ -165,13 +165,15 @@ main() {
   else
     echo "• On your first print to each queue, macOS will prompt for AD credentials and save them to Keychain."
     echo "• Correct format to enter your AD username is ad\username"
+    echo "" 
     
   fi
-  echo "• Duplex is enabled (hardware present) but default remains single-sided."
+  echo "# Duplex is enabled (hardware present) but default remains single-sided."
   echo ""
 }
 
 main "$@"
+
 
 
 
