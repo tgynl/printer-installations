@@ -24,7 +24,8 @@ Q2_NAME="rsm-2w107-xerox-mac"
 Q2_LOC="2nd Floor / West / Grad Student Lounge"
 
 echo "Rady School of Management - macOS SMB Printer Installer (bash)"
-echo "Enter your Mac password"
+echo "Enter your Mac password. Cursor will not appear to move. Keep typing your password"
+echo
 
 # Xerox PPD candidates (prefer vendor; fallback Generic PS)
 XEROX_PPD_CANDIDATES=(
@@ -161,10 +162,15 @@ main() {
   echo
   if [ "$PROMPT_NOW" -eq 1 ]; then
     echo "• You should see macOS ask for your AD username/password now; it will save them in Keychain."
+    echo "• Correct format to enter your AD username is ad\username"
   else
     echo "• On your first print to each queue, macOS will prompt for AD credentials and save them to Keychain."
+    echo "• Correct format to enter your AD username is ad\username"
+    
   fi
   echo "• Duplex is enabled (hardware present) but default remains single-sided."
+  echo
 }
 
 main "$@"
+
