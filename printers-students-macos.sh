@@ -1,23 +1,13 @@
 #!/usr/bin/env bash
 # Rady School of Management - macOS SMB Printer Installer (bash)
-# Server: rsm-print.ad.ucsd.edu
+# Server: rsm-print.ad.ucsd.edu (Windows Server 2016)
 # Printers:
 #   - rsm-2s111-xerox-mac — 2nd Floor South Wing - Help Desk area
 #   - rsm-2w107-xerox-mac — 2nd Floor West Wing - Grad Student Lounge
-# Model: Xerox AltaLink C8230 (prefer vendor PPD; fallback Generic PS)
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
-#   - Duplex + stapling ENABLED (hardware flags set), but NOT default (default stays single-sided)
-#
-# One-liner (CRLF-safe):
-# /bin/bash -c "$(
-#   curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/printers-students-macos.sh | tr -d '\r'
-# )"
-#
-# Flags:
-#   --prompt-now          Send a test page after install to trigger the macOS auth dialog immediately
-#   --username <name>     Prefill a suggested username for the auth dialog (e.g., NETID or AD\\NETID)
+#   - Duplex + stapling ENABLED (hardware flags), but NOT default (default stays single-sided)
 
 set -eu
 (set -o pipefail) 2>/dev/null || true
@@ -27,11 +17,14 @@ SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
 Q1_NAME="rsm-2s111-xerox-mac"
-Q1_LOC="2nd Floor South Wing - Help Desk area"
+Q1_LOC="2nd Floor / South / Help Desk"
 
 # Printer 2
 Q2_NAME="rsm-2w107-xerox-mac"
-Q2_LOC="2nd Floor West Wing - Grand Student Lounge"   # fixed: “Grand”
+Q2_LOC="2nd Floor / West / Grad Student Lounge"
+
+echo "Rady School of Management - macOS SMB Printer Installer (bash)"
+echo "Enter your Mac password"
 
 # Xerox PPD candidates (prefer vendor; fallback Generic PS)
 XEROX_PPD_CANDIDATES=(
@@ -44,8 +37,6 @@ GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
 PROMPT_NOW=0
 SUGGESTED_USER=""
-
-echo "Rady School of Management - macOS SMB Printer Installer (bash)"
 
 ### --- Args --- ###
 while [ $# -gt 0 ]; do
@@ -97,17 +88,18 @@ ppd_for_model_or_generic() {
 # Enable duplex & stapling without probing; ignore errors if an option doesn't exist in the PPD
 enable_features_no_probe() {
   local printer="$1"
-  # Duplex hardware presence
-  lpadmin -p "$printer" -o Duplexer=True           >/dev/null 2>&1 || true
-  lpadmin -p "$printer" -o Duplexer=Installed      >/dev/null 2>&1 || true
-  lpadmin -p "$printer" -o OptionDuplex=Installed  >/dev/null 2>&1 || true
-  lpadmin -p "$printer" -o DuplexUnit=Installed    >/dev/null 2>&1 || true
-  lpadmin -p "$printer" -o InstalledDuplex=True    >/dev/null 2>&1 || true
-  # Stapler/finisher presence
-  lpadmin -p "$printer" -o Stapler=Installed       >/dev/null 2>&1 || true
-  lpadmin -p "$printer" -o Finisher=Installed      >/dev/null 2>&1 || true
-  lpadmin -p "$printer" -o FinisherInstalled=True  >/dev/null 2>&1 || true
-  lpadmin -p "$printer" -o StapleUnit=Installed    >/dev/null 2>&1 || true
+  # Duplex hardware presence (Generic PS uses Option1/Duplexer)
+  lpadmin -p "$printer" -o Option1=True           >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o Duplexer=True          >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o Duplexer=Installed     >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o OptionDuplex=Installed >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o DuplexUnit=Installed   >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o InstalledDuplex=True   >/dev/null 2>&1 || true
+  # Stapler/finisher presence (has effect only with Xerox PPD)
+  lpadmin -p "$printer" -o Stapler=Installed        >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o Finisher=Installed       >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o FinisherInstalled=True   >/dev/null 2>&1 || true
+  lpadmin -p "$printer" -o StapleUnit=Installed     >/dev/null 2>&1 || true
 }
 
 # Keep default as single-sided (don’t enable duplex by default)
@@ -131,6 +123,7 @@ add_printer() {
   local ppd
   ppd="$(ppd_for_model_or_generic)"
 
+  echo
   echo "==> Adding printer '$name' (share '$share') via SMB..."
   echo "    Using PPD: $ppd"
 
@@ -170,9 +163,8 @@ main() {
     echo "• You should see macOS ask for your AD username/password now; it will save them in Keychain."
   else
     echo "• On your first print to each queue, macOS will prompt for AD credentials and save them to Keychain."
-    echo "  (Tip: re-run with --prompt-now to trigger the prompt immediately.)"
   fi
-  echo "• Duplex and stapling are enabled (if supported by the driver), but single-sided is the default."
+  echo "• Duplex is enabled (hardware present) but default remains single-sided."
 }
 
 main "$@"
