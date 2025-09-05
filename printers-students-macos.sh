@@ -6,17 +6,6 @@
 #   • rsm-2w107-xerox-mac — 2nd Floor West Wing - Grand Student Lounge
 # Model: Xerox AltaLink C8230 (prefer vendor PPD; fallback Generic PS)
 # Default: single-sided (no duplex); duplex & stapling available if supported
-#
-# Flags:
-#   --uninstall        Remove both queues and exit
-#   --force-generic    Force Generic PostScript even if Xerox PPD is present
-#   --testpage         Print a CUPS test page to each queue after install
-#   --quiet            Less console output (errors still shown)
-#
-# One-liner (CRLF-safe):
-# /bin/bash -c "$(
-#   curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/printers-students-macos.sh | tr -d '\r'
-# )"
 
 set -eu
 (set -o pipefail) 2>/dev/null || true
@@ -26,13 +15,15 @@ SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
 Q1_NAME="rsm-2s111-xerox-mac"
+Q1_DESC="Xrsm-2s111-xerox-mac"
 Q1_LOC="2nd Floor South Wing - Help Desk area"
 
 # Printer 2
 Q2_NAME="rsm-2w107-xerox-mac"
+Q2_DESC="rsm-2w107-xerox-mac"
 Q2_LOC="2nd Floor West Wing - Grand Student Lounge"
 
-# Xerox PPD candidates (common installs)
+# Xerox PPD paths to try (common installs)
 XEROX_PPD_CANDIDATES=(
   "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8230.gz"
   "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8230.gz"
@@ -40,31 +31,10 @@ XEROX_PPD_CANDIDATES=(
   "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8200 Series.gz"
 )
 
-# Generic PostScript fallback
+# Generic PostScript fallback built into CUPS
 GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
-LOGFILE="/var/log/rsm-printers.log"
-QUIET=0
-FORCE_GENERIC=0
-DO_UNINSTALL=0
-DO_TESTPAGE=0
-
-### --- Args --- ###
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --uninstall) DO_UNINSTALL=1 ;;
-    --force-generic) FORCE_GENERIC=1 ;;
-    --testpage) DO_TESTPAGE=1 ;;
-    --quiet|-q) QUIET=1 ;;
-    *) echo "Unknown option: $1" >&2; exit 2 ;;
-  esac
-  shift
-done
-
 ### --- Helpers --- ###
-log()  { [ "$QUIET" -eq 0 ] && echo "$@" || true; echo "$(date '+%F %T') $@" >>"$LOGFILE" 2>/dev/null || true; }
-elog() { echo "$@" >&2; echo "$(date '+%F %T') ERROR $@" >>"$LOGFILE" 2>/dev/null || true; }
-
 need_sudo() {
   if [ "$(id -u)" -ne 0 ]; then
     sudo -v
@@ -75,22 +45,12 @@ need_sudo() {
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 assert_macos_tools() {
-  for c in lpadmin lpoptions cupsenable cupsaccept lpstat; do
+  for c in lpadmin lpoptions cupsenable cupsaccept; do
     if ! have_cmd "$c"; then
-      elog "Missing required tool: $c (CUPS)"
+      echo "Error: '$c' not found. CUPS is required on macOS." >&2
       exit 1
     fi
   done
-}
-
-resolve_server() {
-  if ! dscacheutil -q host -a name "$SERVER" >/dev/null 2>&1; then
-    if ! ping -c1 -t1 "$SERVER" >/dev/null 2>&1; then
-      elog "Could not resolve or reach $SERVER (DNS/Network). Continuing anyway."
-      return 1
-    fi
-  fi
-  return 0
 }
 
 pick_xerox_ppd() {
@@ -105,9 +65,6 @@ pick_xerox_ppd() {
 }
 
 ppd_for_model_or_generic() {
-  if [ "$FORCE_GENERIC" -eq 1 ]; then
-    echo "$GENERIC_PPD"; return
-  fi
   if PPD="$(pick_xerox_ppd)"; then
     echo "$PPD"
   else
@@ -115,7 +72,6 @@ ppd_for_model_or_generic() {
   fi
 }
 
-# Set an option only if the PPD exposes it
 set_ppd_option_if_supported() {
   local printer="$1" key="$2" value="$3"
   if lpoptions -p "$printer" -l | awk -F: '{print $1}' | grep -qx "$key"; then
@@ -123,123 +79,62 @@ set_ppd_option_if_supported() {
   fi
 }
 
-# Default to single-sided (Simplex)
 set_default_simplex() {
-  local printer="$1" line choices
+  local printer="$1"
+  local line choices
   if line="$(lpoptions -p "$printer" -l | grep '^Duplex/')" 2>/dev/null; then
     choices="$(echo "$line" | sed -E 's/^[^:]+:[[:space:]]*//')"
-    echo "$choices" | grep -qw None    && { lpadmin -p "$printer" -o Duplex=None;    return; }
-    echo "$choices" | grep -qw Off     && { lpadmin -p "$printer" -o Duplex=Off;     return; }
+    echo "$choices" | grep -qw None    && { lpadmin -p "$printer" -o Duplex=None; return; }
+    echo "$choices" | grep -qw Off     && { lpadmin -p "$printer" -o Duplex=Off; return; }
     echo "$choices" | grep -qw Simplex && { lpadmin -p "$printer" -o Duplex=Simplex; return; }
   fi
   set_ppd_option_if_supported "$printer" "Duplex" "None"
 }
 
-# Expose duplex/stapling (names vary by PPD); do NOT enable by default
 expose_feature_flags() {
   local printer="$1"
-  # Duplex hardware
-  set_ppd_option_if_supported "$printer" "Duplexer" "True"
-  set_ppd_option_if_supported "$printer" "Duplexer" "Installed"
-  set_ppd_option_if_supported "$printer" "OptionDuplex" "Installed"
-  set_ppd_option_if_supported "$printer" "DuplexUnit" "Installed"
-  set_ppd_option_if_supported "$printer" "InstalledDuplex" "True"
-  set_ppd_option_if_supported "$printer" "Duplex" "None" # keep default single-sided
-  # Stapler/Finisher
-  set_ppd_option_if_supported "$printer" "Stapler" "Installed"
-  set_ppd_option_if_supported "$printer" "Finisher" "Installed"
-  set_ppd_option_if_supported "$printer" "FinisherInstalled" "True"
-  set_ppd_option_if_supported "$printer" "StapleUnit" "Installed"
-  set_ppd_option_if_supported "$printer" "Staple" "None"    # default: no stapling
-}
-
-# Run a command with errexit disabled; return its status
-run_safely() {
-  set +e
-  "$@"
-  local rc=$?
-  set -e
-  return "$rc"
+  for kv in "Duplexer=True" "Duplexer=Installed" "OptionDuplex=Installed" "DuplexUnit=Installed" "InstalledDuplex=True" "Duplex=None"; do
+    set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
+  done
+  for kv in "Stapler=Installed" "Finisher=Installed" "FinisherInstalled=True" "StapleUnit=Installed" "Staple=None"; do
+    set_ppd_option_if_supported "$printer" "${kv%%=*}" "${kv#*=}"
+  done
 }
 
 add_printer() {
-  local name="$1" share="$2" loc="$3"
-  local ppd ok=0
-  local desc="$name"   # Description equals printer name
-
+  local name="$1" share="$2" desc="$3" loc="$4"
+  local ppd ok=1
   ppd="$(ppd_for_model_or_generic)"
-  log "Installing $name (PPD: $ppd)"
 
-  ok=1
-  run_safely lpadmin -x "$name" 2>/dev/null || true
+  echo "==> Adding printer '$name' (share '$share') via SMB..."
+  echo "    Using PPD: $ppd"
 
-  run_safely lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$desc" -L "$loc" -m "$ppd" || ok=0
-  run_safely cupsaccept "$name" || ok=0
-  run_safely cupsenable "$name" || ok=0
-  run_safely expose_feature_flags "$name" || ok=0
-  run_safely set_default_simplex "$name" || ok=0
+  # Try to add printer; mark failure if any step fails
+  if ! lpadmin -x "$name" 2>/dev/null; then true; fi
+  if ! lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$desc" -L "$loc" -m "$ppd"; then ok=0; fi
+  if ! cupsaccept "$name"; then ok=0; fi
+  if ! cupsenable "$name"; then ok=0; fi
+  if ! expose_feature_flags "$name"; then ok=0; fi
+  if ! set_default_simplex "$name"; then ok=0; fi
 
   if [ "$ok" -eq 1 ]; then
-    log "✅  $name installed (Location: $loc)"
-    return 0
+    echo "✅  Successfully installed '$name' at $loc"
   else
-    elog "❌  $name failed to install. See $LOGFILE for details."
-    return 1
+    echo "❌  Failed to install '$name' at $loc"
   fi
 }
 
-uninstall_printer() {
-  local name="$1"
-  if lpstat -p "$name" >/dev/null 2>&1; then
-    run_safely lpadmin -x "$name"
-    if lpstat -p "$name" >/dev/null 2>&1; then
-      elog "❌  $name removal failed (still present)."
-    else
-      log "✅  $name removed."
-    fi
-  else
-    log "ℹ️  $name not present; nothing to remove."
-  fi
-}
-
-print_testpage() {
-  local name="$1"
-  if lpstat -p "$name" >/dev/null 2>&1; then
-    log "Submitting CUPS test page to $name"
-    if [ -f /System/Library/Printers/Libraries/PrintJobMgr.framework/Versions/A/Resources/TestPage.pdf ]; then
-      run_safely lp -d "$name" /System/Library/Printers/Libraries/PrintJobMgr.framework/Versions/A/Resources/TestPage.pdf || true
-    fi
-  fi
-}
-
-main_install() {
+main() {
   need_sudo
   assert_macos_tools
-  resolve_server || true  # Non-fatal
 
-  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_LOC" || true
-  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_LOC" || true
+  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_DESC" "$Q1_LOC"
+  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_DESC" "$Q2_LOC"
 
-  if [ "$DO_TESTPAGE" -eq 1 ]; then
-    print_testpage "$Q1_NAME"
-    print_testpage "$Q2_NAME"
-  fi
-
-  log ""
-  log "All done! Default is single-sided."
-  log "Users can choose 2-sided & stapling in app dialogs when supported by the driver."
+  echo
+  echo "All done!"
+  echo "• Default is single-sided. Users can choose 2-sided & stapling in app dialogs if supported by the driver."
+  echo "• If Xerox drivers are not installed, Generic PostScript PPD is used as fallback."
 }
 
-main_uninstall() {
-  need_sudo
-  assert_macos_tools
-  uninstall_printer "$Q1_NAME"
-  uninstall_printer "$Q2_NAME"
-  log "Uninstall complete."
-}
-
-if [ "$DO_UNINSTALL" -eq 1 ]; then
-  main_uninstall
-else
-  main_install
-fi
+main "$@"
