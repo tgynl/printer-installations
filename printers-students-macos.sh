@@ -122,13 +122,8 @@ add_printer() {
   echo "    Using PPD: $ppd"
 
   lpadmin -x "$name" 2>/dev/null || true
-  lpadmin \
-    -p "$name" \
-    -E \
-    -v "smb://$SERVER/$share" \
-    -D "$desc" \
-    -L "$loc" \
-    -m "$ppd"
+  # Keep this on one line to avoid line-continuation parsing issues
+  lpadmin -p "$name" -E -v "smb://$SERVER/$share" -D "$desc" -L "$loc" -m "$ppd"
 
   cupsaccept "$name"
   cupsenable "$name"
