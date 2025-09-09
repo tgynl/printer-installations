@@ -17,11 +17,11 @@ SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1 (Color)
 P1_NAME="rsm-3n127-hp-color"
-P1_LOC="3rd Floor / North / 127"
+P1_LOC="3rd Floor / North / PhD Area"
 
 # Printer 2 (B/W)
 P2_NAME="rsm-3n127-xerox-bw-mac"
-P2_LOC="3rd Floor / North / 127"
+P2_LOC="3rd Floor / North / PhD Area"
 
 echo "> Rady School of Management - macOS SMB Printer Installer (PhD printers)"
 echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press RETURN."
