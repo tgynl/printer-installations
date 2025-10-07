@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Rady School of Management - macOS SMB Printer Installer (PhD)
+# Rady School of Management - macOS SMB Printer Installer (Students)
 # Server: rsm-print.ad.ucsd.edu
-# Printer:
-#   - rsm-3n127-xerox — 3rd Floor / North / PhD (Xerox AltaLink C8245 Color MFP)
+# Printers:
+#   - rsm-2s111-xerox / 2nd Floor / South / Help Desk
+#   - rsm-2w107-xerox / 2nd Floor / West / Grad Student Lounge
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
@@ -14,20 +15,25 @@ set -eu
 ### --- Configuration --- ###
 SERVER="rsm-print.ad.ucsd.edu"
 
-# PhD printer
-Q_NAME="rsm-3n127-xerox"
-Q_LOC="3rd Floor / North / PhD"
+# Printer 1
+Q1_NAME="rsm-2s111-xerox"
+Q1_LOC="2nd Floor / South / Help Desk"
 
-echo "> Rady School of Management - macOS SMB Printer Installer (PhD)"
-echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press on RETURN key"
+# Printer 2
+Q2_NAME="rsm-2w107-xerox"
+Q2_LOC="2nd Floor / West / Grad Student Lounge"
 
-# Xerox PPD candidates (C8245 first; C8200 series as fallback), else Generic PS
+echo "> Rady School of Management - macOS SMB Printer Installer (Students)"
+echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press RETURN."
+
+# Xerox PPD candidates (C8200 series; include C8230 names as common alt)
 XEROX_PPD_CANDIDATES=(
-  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8245.gz"
-  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8245.gz"
   "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8200 Series.gz"
   "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8200 Series.gz"
+  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8230.gz"
+  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8230.gz"
 )
+# Generic PostScript fallback
 GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
 PROMPT_NOW=0
@@ -90,7 +96,7 @@ enable_features_no_probe() {
   lpadmin -p "$printer" -o OptionDuplex=Installed >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o DuplexUnit=Installed   >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o InstalledDuplex=True   >/dev/null 2>&1 || true
-  # Stapler/finisher presence (has effect only with Xerox PPD)
+  # Stapler/finisher presence (effective when the Xerox PPD exposes finisher options)
   lpadmin -p "$printer" -o Stapler=Installed        >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o Finisher=Installed       >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o FinisherInstalled=True   >/dev/null 2>&1 || true
@@ -150,14 +156,15 @@ main() {
   need_sudo
   assert_macos_tools
 
-  add_printer "$Q_NAME" "$Q_NAME" "$Q_LOC"
+  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_LOC"
+  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_LOC"
 
   echo
   if [ "$PROMPT_NOW" -eq 1 ]; then
     echo "• You should see macOS ask for your AD username/password now; it will save them in Keychain."
     echo "• Correct format to enter your AD username is ad\\username"
   else
-    echo "• On your first print, macOS will prompt for AD credentials and save them in Keychain."
+    echo "• On your first print to each queue, macOS will prompt for AD credentials and save them in Keychain."
     echo "• Correct format to enter your AD username is ad\\username"
     echo ""
   fi
