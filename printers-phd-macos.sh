@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Rady School of Management - macOS SMB Printer Installer (PhD)
+# Rady School of Management - macOS SMB Printer Installer (PhD printers)
 # Server: rsm-print.ad.ucsd.edu
-# Printer:
-#   - rsm-3n127-xerox / 3rd Floor / North / PhD  (Xerox AltaLink C8245 Color MFP)
+# Printers:
+#   - rsm-3n127-hp-color / 3rd Floor / North / PhD (HP Color LaserJet CP4025)
+#   - rsm-3n127-xerox-bw-mac / 3rd Floor / North / PhD (Xerox B8145)
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
@@ -14,19 +15,27 @@ set -eu
 ### --- Configuration --- ###
 SERVER="rsm-print.ad.ucsd.edu"
 
-# PhD printer
-Q_NAME="rsm-3n127-xerox"
-Q_LOC="3rd Floor / North / PhD"
+# Printer 1 (Color)
+P1_NAME="rsm-3n127-hp-color"
+P1_LOC="3rd Floor / North / PhD"
+
+# Printer 2 (B/W)
+P2_NAME="rsm-3n127-xerox-bw-mac"
+P2_LOC="3rd Floor / North / PhD"
 
 echo "> Rady School of Management - macOS SMB Printer Installer (PhD)"
 echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press RETURN."
 
-# Xerox PPD candidates (C8245 first; C8200 series as fallback), else Generic PS
+# PPD candidates
+HP_PPD_CANDIDATES=(
+  "/Library/Printers/PPDs/Contents/Resources/HP Color LaserJet CP4025.gz"
+  "/Library/Printers/PPDs/Contents/Resources/en.lproj/HP Color LaserJet CP4025.gz"
+)
 XEROX_PPD_CANDIDATES=(
-  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8245.gz"
-  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8245.gz"
-  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8200 Series.gz"
-  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8200 Series.gz"
+  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink B8145.gz"
+  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink B8145.gz"
+  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink B8100 Series.gz"
+  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink B8100 Series.gz"
 )
 GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
@@ -62,9 +71,9 @@ assert_macos_tools() {
   done
 }
 
-pick_xerox_ppd() {
+pick_ppd_from_list() {
   local p
-  for p in "${XEROX_PPD_CANDIDATES[@]}"; do
+  for p in "$@"; do
     if [ -f "$p" ]; then
       echo "$p"; return 0
     fi
@@ -72,15 +81,29 @@ pick_xerox_ppd() {
   return 1
 }
 
-ppd_for_model_or_generic() {
-  if PPD="$(pick_xerox_ppd)"; then
-    echo "$PPD"
-  else
-    echo "$GENERIC_PPD"
-  fi
+ppd_for_queue() {
+  case "$1" in
+    "$P1_NAME")
+      if PPD="$(pick_ppd_from_list "${HP_PPD_CANDIDATES[@]}")"; then
+        echo "$PPD"
+      else
+        echo "$GENERIC_PPD"
+      fi
+      ;;
+    "$P2_NAME")
+      if PPD="$(pick_ppd_from_list "${XEROX_PPD_CANDIDATES[@]}")"; then
+        echo "$PPD"
+      else
+        echo "$GENERIC_PPD"
+      fi
+      ;;
+    *)
+      echo "$GENERIC_PPD"
+      ;;
+  esac
 }
 
-# Enable duplex & stapling without probing; ignore errors if an option doesn't exist in the PPD
+# Enable duplex & stapling without probing; ignore errors if an option doesn't exist
 enable_features_no_probe() {
   local printer="$1"
   # Duplex hardware presence (some PPDs use Option1/Duplexer)
@@ -90,14 +113,14 @@ enable_features_no_probe() {
   lpadmin -p "$printer" -o OptionDuplex=Installed >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o DuplexUnit=Installed   >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o InstalledDuplex=True   >/dev/null 2>&1 || true
-  # Stapler/finisher presence (effective when Xerox PPD exposes finisher options)
+  # Stapler/finisher presence (effective when the Xerox PPD exposes finisher options)
   lpadmin -p "$printer" -o Stapler=Installed        >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o Finisher=Installed       >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o FinisherInstalled=True   >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o StapleUnit=Installed     >/dev/null 2>&1 || true
 }
 
-# Keep default as single-sided (don’t enable duplex by default)
+# Keep default as single-sided
 set_default_simplex_no_probe() {
   local printer="$1"
   lpadmin -p "$printer" -o Duplex=None >/dev/null 2>&1 || true
@@ -116,7 +139,7 @@ send_auth_probe() {
 add_printer() {
   local name="$1" share="$2" loc="$3"
   local ppd
-  ppd="$(ppd_for_model_or_generic)"
+  ppd="$(ppd_for_queue "$name")"
 
   echo
   echo "# Adding printer '$name' (share '$share') via SMB..."
@@ -134,7 +157,6 @@ add_printer() {
   cupsaccept "$name"
   cupsenable "$name"
 
-  # Enable duplex & stapling hardware (not default)
   enable_features_no_probe "$name"
   set_default_simplex_no_probe "$name"
 
@@ -150,14 +172,15 @@ main() {
   need_sudo
   assert_macos_tools
 
-  add_printer "$Q_NAME" "$Q_NAME" "$Q_LOC"
+  add_printer "$P1_NAME" "$P1_NAME" "$P1_LOC"
+  add_printer "$P2_NAME" "$P2_NAME" "$P2_LOC"
 
   echo
   if [ "$PROMPT_NOW" -eq 1 ]; then
     echo "• You should see macOS ask for your AD username/password now; it will save them in Keychain."
     echo "• Correct format to enter your AD username is ad\\username"
   else
-    echo "• On your first print, macOS will prompt for AD credentials and save them in Keychain."
+    echo "• On your first print to each queue, macOS will prompt for AD credentials and save them in Keychain."
     echo "• Correct format to enter your AD username is ad\\username"
     echo ""
   fi
