@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Rady School of Management - macOS SMB Printer Installer (bash)
+# Rady School of Management - macOS SMB Printer Installer (PhD)
 # Server: rsm-print.ad.ucsd.edu
-# Printers:
-#   - rsm-2s111-xerox-mac / 2nd Floor / South / Help Desk area
-#   - rsm-2w107-xerox-mac — 2nd Floor / West / Grad Student Lounge
+# Printer:
+#   - rsm-3n127-xerox — 3rd Floor / North / PhD (Xerox AltaLink C8245 Color MFP)
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
@@ -15,21 +14,17 @@ set -eu
 ### --- Configuration --- ###
 SERVER="rsm-print.ad.ucsd.edu"
 
-# Printer 1
-Q1_NAME="rsm-2s111-xerox-mac"
-Q1_LOC="2nd Floor / South / Help Desk"
+# PhD printer
+Q_NAME="rsm-3n127-xerox"
+Q_LOC="3rd Floor / North / PhD"
 
-# Printer 2
-Q2_NAME="rsm-2w107-xerox-mac"
-Q2_LOC="2nd Floor / West / Grad Student Lounge"
-
-echo "> Rady School of Management - macOS SMB Printer Installer (bash)"
+echo "> Rady School of Management - macOS SMB Printer Installer (PhD)"
 echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press on RETURN key"
 
-# Xerox PPD candidates (prefer vendor; fallback Generic PS)
+# Xerox PPD candidates (C8245 first; C8200 series as fallback), else Generic PS
 XEROX_PPD_CANDIDATES=(
-  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8230.gz"
-  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8230.gz"
+  "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8245.gz"
+  "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8245.gz"
   "/Library/Printers/PPDs/Contents/Resources/Xerox AltaLink C8200 Series.gz"
   "/Library/Printers/PPDs/Contents/Resources/en.lproj/Xerox AltaLink C8200 Series.gz"
 )
@@ -88,7 +83,7 @@ ppd_for_model_or_generic() {
 # Enable duplex & stapling without probing; ignore errors if an option doesn't exist in the PPD
 enable_features_no_probe() {
   local printer="$1"
-  # Duplex hardware presence (Generic PS uses Option1/Duplexer)
+  # Duplex hardware presence (some PPDs use Option1/Duplexer)
   lpadmin -p "$printer" -o Option1=True           >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o Duplexer=True          >/dev/null 2>&1 || true
   lpadmin -p "$printer" -o Duplexer=Installed     >/dev/null 2>&1 || true
@@ -155,18 +150,16 @@ main() {
   need_sudo
   assert_macos_tools
 
-  add_printer "$Q1_NAME" "$Q1_NAME" "$Q1_LOC"
-  add_printer "$Q2_NAME" "$Q2_NAME" "$Q2_LOC"
+  add_printer "$Q_NAME" "$Q_NAME" "$Q_LOC"
 
   echo
   if [ "$PROMPT_NOW" -eq 1 ]; then
     echo "• You should see macOS ask for your AD username/password now; it will save them in Keychain."
-    echo "• Correct format to enter your AD username is ad\username"
+    echo "• Correct format to enter your AD username is ad\\username"
   else
-    echo "• On your first print to each queue, macOS will prompt for AD credentials and save them to Keychain."
-    echo "• Correct format to enter your AD username is ad\username"
-    echo "" 
-    
+    echo "• On your first print, macOS will prompt for AD credentials and save them in Keychain."
+    echo "• Correct format to enter your AD username is ad\\username"
+    echo ""
   fi
   echo "# Duplex is enabled (hardware present) but default remains single-sided."
   echo ""
