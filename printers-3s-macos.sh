@@ -16,7 +16,7 @@ set -eu
 SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
-Q1_NAME="rsm-3s143-xerox"
+Q1_NAME="rsm-3s143-xerox-mac"
 Q1_LOC="3rd Floor / South"
 
 # Printer 2
