@@ -2,8 +2,8 @@
 # Rady School of Management - macOS SMB Printer Installer (Students)
 # Server: rsm-print.ad.ucsd.edu
 # Printers:
-#   - rsm-2s111-xerox / 2nd Floor / South / Help Desk
-#   - rsm-2w107-xerox / 2nd Floor / West / Grad Student Lounge
+#   - rsm-2s111-xerox-mac / 2nd Floor / South / Help Desk
+#   - rsm-2w107-xerox-mac / 2nd Floor / West / Grad Student Lounge
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
@@ -16,11 +16,11 @@ set -eu
 SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
-Q1_NAME="rsm-2s111-xerox"
+Q1_NAME="rsm-2s111-xerox-mac"
 Q1_LOC="2nd Floor / South / Help Desk"
 
 # Printer 2
-Q2_NAME="rsm-2w107-xerox"
+Q2_NAME="rsm-2w107-xerox-mac"
 Q2_LOC="2nd Floor / West / Grad Student Lounge"
 
 echo "> Rady School of Management - macOS SMB Printer Installer (Students)"
