@@ -2,7 +2,7 @@
 # Rady School of Management - macOS SMB Printer Installer (Students)
 # Server: rsm-print.ad.ucsd.edu
 # Printers:
-#   - rsm-5w109-xerox / 5th Floor / West / 
+#   - rsm-5w109-xerox-mac / 5th Floor / West / 
 
 # Behavior:
 #   - Description equals printer name
@@ -16,7 +16,7 @@ set -eu
 SERVER="rsm-print.ad.ucsd.edu"
 
 # Printer 1
-Q1_NAME="rsm-5w109-xerox"
+Q1_NAME="rsm-5w109-xerox-mac"
 Q1_LOC="5th Floor / West"
 
 # Printer 2
