@@ -19,13 +19,20 @@
 #   r) Remove all      – Remove all rsm-* printers
 
 # ── Re-exec from /dev/tty so interactive reads work under curl | bash ── #
-if [ -t 0 ]; then
-  : # already interactive, nothing to do
-elif [ -e /dev/tty ]; then
-  exec bash "$0" "$@" </dev/tty
-else
-  echo "Error: no terminal available (/dev/tty not found)." >&2
-  exit 1
+if [ ! -t 0 ]; then
+  if [ ! -e /dev/tty ]; then
+    echo "Error: no terminal available (/dev/tty not found)." >&2
+    exit 1
+  fi
+  # stdin is a pipe (curl | bash): buffer the script to a temp file and re-exec
+  tmp="$(mktemp /tmp/rsm-printer-install.XXXXXX.sh)"
+  # Write what's already been read (this file) into the temp file
+  cat "$0" > "$tmp" 2>/dev/null || {
+    # $0 is not a real path (e.g. "bash"), so read remaining stdin into the temp file
+    cat > "$tmp"
+  }
+  chmod +x "$tmp"
+  exec bash "$tmp" "$@" </dev/tty
 fi
 
 set -eu
