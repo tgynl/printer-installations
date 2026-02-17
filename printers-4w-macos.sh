@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rady School of Management - macOS SMB Printer Installer (PhD printers)
+# Rady School of Management - macOS SMB Printer Installer (Faculty printers)
 # Server: rsm-print.ad.ucsd.edu
 # Printers:
 #   - rsm-4w111-hp-color / 4th Floor / West / Faculty (HP Color LaserJet CP4025)
@@ -23,7 +23,7 @@ P1_LOC="4th Floor / West / Faculty"
 P2_NAME="rsm-4w111-xerox-bw-mac"
 P2_LOC="4th Floor / West / Faculty"
 
-echo "> Rady School of Management - macOS SMB Printer Installer (PhD)"
+echo "> Rady School of Management - macOS SMB Printer Installer (Faculty)"
 echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press RETURN."
 
 # PPD candidates
