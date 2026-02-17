@@ -228,16 +228,16 @@ show_menu() {
   echo
   echo "  Select the printer(s) to install:"
   echo
-  echo "  1) Students     – 2F South (Help Desk) + 2F West (Grad Lounge)"
-  echo "  2) 2nd Floor E  – rsm-2e132-xerox-bw-mac"
-  echo "  3) 3rd Floor S  – rsm-3s143-xerox-mac"
-  echo "  4) 3rd Floor W  – rsm-3w111-xerox-bw-mac"
-  echo "  5) 4th Floor S  – rsm-4s143-xerox-mac"
-  echo "  6) 4th Floor W  – rsm-4w111-xerox-bw-mac"
-  echo "  7) 5th Floor W  – rsm-5w109-xerox-mac"
-  echo "  8) PhD          – 3F North: HP Color + Xerox B/W"
-  echo "  9) All          – Install every printer above"
-  echo "  r) Remove all   – Remove all rsm-* printers"
+  echo "  1) Students          – rsm-2s111-xerox-mac & rsm-2w107-xerox-mac"
+  echo "  2) 2nd Floor East    – rsm-2e132-xerox-bw-mac"
+  echo "  3) 3rd Floor South   – rsm-3s143-xerox-mac"
+  echo "  4) 3rd Floor West    – rsm-3w111-xerox-bw-mac & rsm-3w111-hp-color"
+  echo "  5) 4th Floor South   – rsm-4s143-xerox-mac"
+  echo "  6) 4th Floor West    – rsm-4w111-xerox-bw-mac & rsm-4w111-hp-color"
+  echo "  7) 5th Floor West    – rsm-5w109-xerox-mac"
+  echo "  8) PhD               – rsm-3n127-xerox-bw-mac & rsm-3n127-hp-color"
+  echo "  9) All               – Install every printer above"
+  echo "  r) Remove all        – Remove all rsm-* printers"
   echo "  q) Quit"
   echo
 }
