@@ -53,8 +53,8 @@ done
 ### ── Helpers ────────────────────────────────────────────────── ###
 need_sudo() {
   if [ "$(id -u)" -ne 0 ]; then
-    sudo -v
-    while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+    sudo -v </dev/tty
+    while true; do sudo -n true; sleep 60; kill -0 "$" || exit; done 2>/dev/null &
   fi
 }
 
@@ -252,28 +252,26 @@ main() {
 
   while true; do
     show_menu
-    printf "  Your choice [1-9 or q]: "
-    read -r choice
+    printf "  Your choice [1-9, r, or q]: "
+    read -r choice </dev/tty
 
     case "$choice" in
-      1) install_students ;;
-      2) install_2e       ;;
-      3) install_3s       ;;
-      4) install_3w       ;;
-      5) install_4s       ;;
-      6) install_4w       ;;
-      7) install_5w       ;;
-      8) install_phd      ;;
-      9) install_all      ;;
+      1) install_students; post_install_msg ;;
+      2) install_2e;       post_install_msg ;;
+      3) install_3s;       post_install_msg ;;
+      4) install_3w;       post_install_msg ;;
+      5) install_4s;       post_install_msg ;;
+      6) install_4w;       post_install_msg ;;
+      7) install_5w;       post_install_msg ;;
+      8) install_phd;      post_install_msg ;;
+      9) install_all;      post_install_msg ;;
       r|R) remove_all_rsm ;;
       q|Q) echo "Bye!"; exit 0 ;;
       *) echo "  Invalid choice. Please enter 1–9, r, or q." ; continue ;;
     esac
 
-    post_install_msg
-
-    printf "  Install another group? [y/N]: "
-    read -r again
+    printf "  Return to menu? [y/N]: "
+    read -r again </dev/tty
     case "$again" in
       y|Y) continue ;;
       *) break ;;
