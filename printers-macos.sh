@@ -2,27 +2,17 @@
 # Rady School of Management - macOS SMB Printer Installer (All Locations)
 # Server: rsm-print.ad.ucsd.edu
 #
-# Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/printers-macos.sh)
-#   ./printers-macos.sh [--prompt-now] [--username ad\\username]
+# Runs interactively even when executed via:
+#   curl -fsSL https://raw.githubusercontent.com/tgynl/printer-installations/main/printers-macos.sh | bash
 #
-# Menu:
-#   1) Students – 2F South + 2F West
-#   2) 2nd Floor East
-#   3) 3rd Floor South
-#   4) 3rd Floor West
-#   5) 4th Floor South
-#   6) 4th Floor West
-#   7) 5th Floor West
-#   8) PhD – 3rd Floor North
-#   9) All
-#   r) Remove all rsm-* printers
-#   q) Quit
+# Flags:
+#   --prompt-now            Send a test job after install to trigger auth prompt immediately
+#   --username <ad\\user>   Prefill suggested username for auth prompt
 
 set -eu
 (set -o pipefail) 2>/dev/null || true
 
-### ── Shared config ──────────────────────────────────────────── ###
+### --- Shared config --- ###
 SERVER="rsm-print.ad.ucsd.edu"
 GENERIC_PPD="drv:///sample.drv/generic.ppd"
 
@@ -48,7 +38,7 @@ XEROX_B8145_PPDS=(
 PROMPT_NOW=0
 SUGGESTED_USER=""
 
-### ── Argument parsing ───────────────────────────────────────── ###
+### --- Argument parsing --- ###
 while [ $# -gt 0 ]; do
   case "$1" in
     --prompt-now) PROMPT_NOW=1 ;;
@@ -58,10 +48,36 @@ while [ $# -gt 0 ]; do
   shift || true
 done
 
-### ── Helpers ────────────────────────────────────────────────── ###
+### --- TTY-safe input (fixes curl | bash interactive exit) --- ###
+TTY="/dev/tty"
+read_tty() {
+  # Reads one line from the user's terminal into REPLY
+  if [ -r "$TTY" ]; then
+    IFS= read -r REPLY < "$TTY" || REPLY=""
+  else
+    # Fallback (non-interactive)
+    IFS= read -r REPLY || REPLY=""
+  fi
+}
+
+print_tty() {
+  # Prints to the user's terminal (so prompts appear even when stdout is redirected)
+  if [ -w "$TTY" ]; then
+    printf "%s" "$*" > "$TTY"
+  else
+    printf "%s" "$*"
+  fi
+}
+
+### --- Helpers --- ###
 need_sudo() {
   if [ "$(id -u)" -ne 0 ]; then
-    sudo -v
+    # force sudo prompt to use terminal if available
+    if [ -r "$TTY" ]; then
+      sudo -v < "$TTY"
+    else
+      sudo -v
+    fi
     while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
   fi
 }
@@ -121,7 +137,7 @@ add_printer() {
   ppd="$(pick_ppd "$@")"
 
   echo
-  echo "# Adding '$name' → smb://$SERVER/$name"
+  echo "# Adding '$name' -> smb://$SERVER/$name"
   echo "# Location : $loc"
   echo "# PPD      : $ppd"
 
@@ -145,72 +161,35 @@ add_printer() {
   echo "✔ Installed '$name'"
 
   if [ "$PROMPT_NOW" -eq 1 ]; then
-    echo "  → Sending auth probe for '$name'…"
+    echo "  -> Sending auth probe for '$name'..."
     send_auth_probe "$name"
   fi
 }
 
-remove_all_rsm() {
-  echo "▶ Removing all rsm-* printers…"
-  local removed=0
-  local list
-  list="$(lpstat -p 2>/dev/null | awk '{print $2}' | grep '^rsm-' || true)"
-
-  if [ -z "$list" ]; then
-    echo "No RSM printers found."
-    return 0
-  fi
-
-  while IFS= read -r pr; do
-    [ -n "$pr" ] || continue
-    echo "Removing '$pr'…"
-    if lpadmin -x "$pr" 2>/dev/null; then
-      removed=$((removed + 1))
-    else
-      echo "⚠ Could not remove '$pr'"
-    fi
-  done <<EOF
-$list
-EOF
-
-  echo "✔ Removed $removed RSM printer(s)."
-}
-
-post_install_msg() {
-  echo
-  if [ "$PROMPT_NOW" -eq 1 ]; then
-    echo "• macOS will prompt for AD credentials now; they'll be saved in Keychain."
-  else
-    echo "• On your first print, macOS will prompt for AD credentials and save them in Keychain."
-  fi
-  echo "• Enter your AD username as: ad\\username"
-  echo "• Duplex hardware is enabled, but default remains single-sided."
-  echo
-}
-
-### ── Printer group installers ───────────────────────────────── ###
+### --- Printer group installers --- ###
 install_students() {
-  echo "▶ Installing Student printers (2nd Floor)…"
+  echo "▶ Installing Student printers (2nd Floor)..."
+  # NOTE: if your real queues end with -mac, change names here accordingly.
   add_printer "rsm-2s111-xerox" "2nd Floor / South / Help Desk" "${XEROX_C8200_PPDS[@]}"
   add_printer "rsm-2w107-xerox" "2nd Floor / West / Grad Student Lounge" "${XEROX_C8200_PPDS[@]}"
 }
 
-install_2e() { echo "▶ Installing 2nd Floor East printer…"; add_printer "rsm-2e132-xerox-bw-mac" "2nd Floor / East" "${XEROX_B8145_PPDS[@]}"; }
-install_3s() { echo "▶ Installing 3rd Floor South printer…"; add_printer "rsm-3s143-xerox-mac" "3rd Floor / South" "${XEROX_C8200_PPDS[@]}"; }
+install_2e() { echo "▶ Installing 2nd Floor East printer..."; add_printer "rsm-2e132-xerox-bw-mac" "2nd Floor / East" "${XEROX_B8145_PPDS[@]}"; }
+install_3s() { echo "▶ Installing 3rd Floor South printer..."; add_printer "rsm-3s143-xerox-mac" "3rd Floor / South" "${XEROX_C8200_PPDS[@]}"; }
 install_3w() {
-  echo "▶ Installing 3rd Floor West printers…"
+  echo "▶ Installing 3rd Floor West printers..."
   add_printer "rsm-3w111-hp-color" "3rd Floor / West" "${HP_CP4025_PPDS[@]}"
   add_printer "rsm-3w111-xerox-bw-mac" "3rd Floor / West" "${XEROX_B8145_PPDS[@]}"
 }
-install_4s() { echo "▶ Installing 4th Floor South printer…"; add_printer "rsm-4s143-xerox-mac" "4th Floor / South" "${XEROX_C8200_PPDS[@]}"; }
+install_4s() { echo "▶ Installing 4th Floor South printer..."; add_printer "rsm-4s143-xerox-mac" "4th Floor / South" "${XEROX_C8200_PPDS[@]}"; }
 install_4w() {
-  echo "▶ Installing 4th Floor West printers…"
+  echo "▶ Installing 4th Floor West printers..."
   add_printer "rsm-4w111-hp-color" "4th Floor / West" "${HP_CP4025_PPDS[@]}"
   add_printer "rsm-4w111-xerox-bw-mac" "4th Floor / West" "${XEROX_B8145_PPDS[@]}"
 }
-install_5w() { echo "▶ Installing 5th Floor West printer…"; add_printer "rsm-5w109-xerox-mac" "5th Floor / West" "${XEROX_C8200_PPDS[@]}"; }
+install_5w() { echo "▶ Installing 5th Floor West printer..."; add_printer "rsm-5w109-xerox-mac" "5th Floor / West" "${XEROX_C8200_PPDS[@]}"; }
 install_phd() {
-  echo "▶ Installing PhD printers (3rd Floor North)…"
+  echo "▶ Installing PhD printers (3rd Floor North)..."
   add_printer "rsm-3n127-hp-color" "3rd Floor / North / PhD" "${HP_CP4025_PPDS[@]}"
   add_printer "rsm-3n127-xerox-bw-mac" "3rd Floor / North / PhD" "${XEROX_B8145_PPDS[@]}"
 }
@@ -226,41 +205,80 @@ install_all() {
   install_phd
 }
 
+remove_all_rsm() {
+  echo "▶ Removing all RSM printers..."
+  local removed=0
+  local printer
+
+  while IFS= read -r printer; do
+    case "$printer" in
+      rsm-*)
+        echo "  Removing '$printer'..."
+        if lpadmin -x "$printer" 2>/dev/null; then
+          removed=$((removed + 1))
+        else
+          echo "  ⚠ Could not remove '$printer'"
+        fi
+        ;;
+    esac
+  done < <(lpstat -p 2>/dev/null | awk '{print $2}')
+
+  if [ "$removed" -eq 0 ]; then
+    echo "No RSM printers found."
+  else
+    echo "✔ Removed $removed RSM printer(s)."
+  fi
+}
+
+post_install_msg() {
+  echo
+  if [ "$PROMPT_NOW" -eq 1 ]; then
+    echo "• macOS will prompt for AD credentials now; they'll be saved in Keychain."
+  else
+    echo "• On your first print, macOS will prompt for AD credentials and save them in Keychain."
+  fi
+  echo "• Enter your AD username as: ad\\username"
+  echo "• Duplex hardware is enabled, but default remains single-sided."
+  echo
+}
+
 show_menu() {
   echo
   echo "============================================="
-  echo " Rady School of Management – Printer Setup"
+  echo " Rady School of Management - Printer Setup"
   echo " Server: $SERVER"
   echo "============================================="
   echo
   echo "Select the printer(s) to install:"
   echo
-  echo " 1) Students – rsm-2s111-xerox & rsm-2w107-xerox"
-  echo " 2) 2nd Floor East – rsm-2e132-xerox-bw-mac"
-  echo " 3) 3rd Floor South – rsm-3s143-xerox-mac"
-  echo " 4) 3rd Floor West – rsm-3w111-hp-color & rsm-3w111-xerox-bw-mac"
-  echo " 5) 4th Floor South – rsm-4s143-xerox-mac"
-  echo " 6) 4th Floor West – rsm-4w111-hp-color & rsm-4w111-xerox-bw-mac"
-  echo " 7) 5th Floor West – rsm-5w109-xerox-mac"
-  echo " 8) PhD – rsm-3n127-hp-color & rsm-3n127-xerox-bw-mac"
-  echo " 9) All – Install every printer above"
-  echo " r) Remove all – Remove all rsm-* printers"
+  echo " 1) Students - 2nd Floor (South + West)"
+  echo " 2) 2nd Floor East"
+  echo " 3) 3rd Floor South"
+  echo " 4) 3rd Floor West"
+  echo " 5) 4th Floor South"
+  echo " 6) 4th Floor West"
+  echo " 7) 5th Floor West"
+  echo " 8) PhD (3rd Floor North)"
+  echo " 9) All"
+  echo " r) Remove all rsm-* printers"
   echo " q) Quit"
   echo
 }
 
 main() {
-  echo "> Rady School of Management – macOS SMB Printer Installer"
+  echo "> Rady School of Management - macOS SMB Printer Installer"
   echo "> Enter your Mac password when prompted."
-  echo "> The cursor will NOT move — keep typing, then press RETURN."
+  echo "> The cursor will NOT move - keep typing, then press RETURN."
 
   need_sudo
   assert_macos_tools
 
   while true; do
     show_menu
-    printf "Your choice [1-9, r, or q]: "
-    read -r choice
+
+    print_tty "Your choice [1-9, r, or q]: "
+    read_tty
+    choice="$REPLY"
 
     case "$choice" in
       1) install_students; post_install_msg ;;
@@ -274,11 +292,13 @@ main() {
       9) install_all; post_install_msg ;;
       r|R) remove_all_rsm ;;
       q|Q) echo "Bye!"; exit 0 ;;
-      *) echo "Invalid choice. Please enter 1–9, r, or q." ;;
+      *) echo "Invalid choice. Please enter 1-9, r, or q." ;;
     esac
 
-    printf "Return to menu? [y/N]: "
-    read -r again
+    print_tty "Return to menu? [y/N]: "
+    read_tty
+    again="$REPLY"
+
     case "$again" in
       y|Y) continue ;;
       *) break ;;
