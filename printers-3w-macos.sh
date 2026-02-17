@@ -2,8 +2,8 @@
 # Rady School of Management - macOS SMB Printer Installer (PhD printers)
 # Server: rsm-print.ad.ucsd.edu
 # Printers:
-#   - rsm-3w111-hp-color / 3rd Floor / North / PhD (HP Color LaserJet CP4025)
-#   - rsm-3w111-xerox-bw-mac / 3rd Floor / North / PhD (Xerox B8145)
+#   - rsm-3w111-hp-color / 3rd Floor / West / Faculty (HP Color LaserJet CP4025)
+#   - rsm-3w111-xerox-bw-mac / 3rd Floor / West / Faculty (Xerox B8145)
 # Behavior:
 #   - Description equals printer name
 #   - Auth prompts on first print (or immediately with --prompt-now)
@@ -23,7 +23,7 @@ P1_LOC="3rd Floor / West / Faculty"
 P2_NAME="rsm-3w111-xerox-bw-mac"
 P2_LOC="3rd Floor / West / Faculty"
 
-echo "> Rady School of Management - macOS SMB Printer Installer (PhD)"
+echo "> Rady School of Management - macOS SMB Printer Installer (Faculty)"
 echo "> Enter your Mac password. Cursor will NOT appear to move. Keep typing your password then press RETURN."
 
 # PPD candidates
